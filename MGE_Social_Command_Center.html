@@ -3714,29 +3714,55 @@
         <div class="reviews-header">
             <div>
                 <div class="reviews-title">Company Reviews</div>
-                <div class="reviews-subtitle">Google Business Profile reviews for Madison Gas and Electric Company. Browse and monitor customer feedback below — click any review in the panel to read it in full.</div>
+                <div class="reviews-subtitle">Google Business Profile reviews for Madison Gas and Electric Company — most recent first. Monitor customer feedback and track overall sentiment.</div>
             </div>
             <div class="reviews-meta">
-                <a class="reviews-gbp-link" href="https://business.google.com/reviews" target="_blank" rel="noopener">↗ Respond on Google</a>
+                <div>Last refreshed: <strong id="reviewsLastRefreshed">--</strong></div>
+                <div style="margin-top:8px;">
+                    <a class="reviews-gbp-link" href="https://business.google.com/reviews" target="_blank" rel="noopener">↗ View on Google</a>
+                </div>
             </div>
         </div>
 
-        <!-- Google Maps embed — shows MGE business listing with star rating + scrollable reviews -->
-        <div class="reviews-embed-wrap">
-            <iframe
-                src="https://maps.google.com/maps?q=Madison+Gas+and+Electric+Company,+133+S+Blair+St,+Madison,+WI+53703&output=embed"
-                width="100%"
-                height="640"
-                style="border:0; border-radius:12px; display:block;"
-                allowfullscreen=""
-                loading="lazy"
-                referrerpolicy="no-referrer-when-downgrade"
-                title="Madison Gas and Electric — Google Business Profile"
-            ></iframe>
+        <!-- Summary panel (hidden until data loads) -->
+        <div class="reviews-summary" id="reviewsSummary" style="display:none;">
+            <div class="reviews-score-block">
+                <div class="reviews-score-number" id="reviewsAvgScore">--</div>
+                <div class="reviews-score-stars" id="reviewsAvgStars">☆☆☆☆☆</div>
+                <div class="reviews-score-count"><span id="reviewsTotalCount">--</span> reviews</div>
+            </div>
+            <div class="reviews-divider"></div>
+            <div class="reviews-breakdown" id="reviewsBreakdown"></div>
         </div>
 
-        <div class="reviews-embed-note">
-            ℹ️ Viewing via Google Maps embed. Click the business name or star rating in the panel on the left to open the full reviews list. To write a response to a review, use the <a href="https://business.google.com/reviews" target="_blank" rel="noopener" style="color:#006553;font-weight:600;">Respond on Google</a> link above.
+        <!-- Filter + sort bar (hidden until data loads) -->
+        <div class="reviews-filter-bar" id="reviewsFilterBar" style="display:none;">
+            <button class="reviews-filter-chip active" data-filter="all" onclick="filterReviews('all', this)">All</button>
+            <button class="reviews-filter-chip" data-filter="5" onclick="filterReviews('5', this)">★ 5</button>
+            <button class="reviews-filter-chip" data-filter="4" onclick="filterReviews('4', this)">★ 4</button>
+            <button class="reviews-filter-chip" data-filter="3" onclick="filterReviews('3', this)">★ 3</button>
+            <button class="reviews-filter-chip" data-filter="2" onclick="filterReviews('2', this)">★ 2</button>
+            <button class="reviews-filter-chip" data-filter="1" onclick="filterReviews('1', this)">★ 1</button>
+            <div class="reviews-filter-sep"></div>
+            <span class="reviews-sort-label">Sort:</span>
+            <select class="reviews-sort-select" id="reviewsSortSelect" onchange="sortAndRenderReviews()">
+                <option value="newest">Newest First</option>
+                <option value="lowest">Lowest Rating First</option>
+                <option value="highest">Highest Rating First</option>
+            </select>
+        </div>
+
+        <!-- Cards grid -->
+        <div class="reviews-grid" id="reviewsGrid">
+            <!-- Pending state shown by default until API is connected -->
+            <div class="reviews-api-pending">
+                <div class="reviews-api-pending-icon">⏳</div>
+                <div class="reviews-api-pending-title">Reviews Coming Soon</div>
+                <div class="reviews-api-pending-text">
+                    Google Business Profile API access is being set up. Once connected, reviews will display here newest-first with star ratings, full review text, and filter by rating.<br><br>
+                    <strong>To activate:</strong> ask cwarner@mge.com to add taylormcgraham@gmail.com as a Manager on the MGE Google Business Profile, then submit the GBP API access form.
+                </div>
+            </div>
         </div>
 
     </div>
@@ -8305,7 +8331,7 @@ async function renderInsightsPanel(data, previousData, force) {
         if (reviewsViewEl) reviewsViewEl.classList.toggle('active', view === 'reviews');
         if (view === 'mentions' && !_mentionsState.data) loadMentionsWithAutoRefresh();
         if (view === 'pulse' && typeof loadPulseData === 'function') loadPulseData();
-        // reviews tab is static iframe — no data load needed
+        if (view === 'reviews' && typeof loadReviewsData === 'function') loadReviewsData();
     };
 
     /* ============ Company Reviews ============ */
