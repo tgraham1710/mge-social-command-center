@@ -37,6 +37,17 @@ function loadConfig() {
       accessToken: process.env.LINKEDIN_TOKEN || fileConfig?.linkedin?.accessToken || '',
       organizationId: process.env.LINKEDIN_ORG_ID || fileConfig?.linkedin?.organizationId || ''
     },
+    googleReviews: {
+      // Google Business Profile API (OAuth 2.0)
+      // Credentials added to Render env vars once GBP API access is approved by Google.
+      // Required env vars: GBP_CLIENT_ID, GBP_CLIENT_SECRET, GBP_REFRESH_TOKEN, GBP_ACCOUNT_NAME
+      enabled: !!(process.env.GBP_CLIENT_ID && process.env.GBP_REFRESH_TOKEN),
+      clientId:     process.env.GBP_CLIENT_ID     || fileConfig?.googleReviews?.clientId     || '',
+      clientSecret: process.env.GBP_CLIENT_SECRET || fileConfig?.googleReviews?.clientSecret || '',
+      refreshToken: process.env.GBP_REFRESH_TOKEN || fileConfig?.googleReviews?.refreshToken || '',
+      // GBP account name format: "accounts/XXXXXXXXXX"
+      accountName:  process.env.GBP_ACCOUNT_NAME  || fileConfig?.googleReviews?.accountName  || ''
+    },
     server: {
       port: parseInt(process.env.PORT || fileConfig?.server?.port || '3000', 10),
       refreshIntervalSeconds: fileConfig?.server?.refreshIntervalSeconds || 3600
@@ -2527,6 +2538,86 @@ app.get('/api/stories/refresh', async (req, res) => {
 });
 
 
+// ============================================================
+// Google Business Profile Reviews API
+// ============================================================
+
+// In-memory token cache (access tokens expire after 1 hour)
+let _gbpAccessToken = null;
+let _gbpTokenExpiry = 0;
+
+async function getGbpAccessToken(cfg) {
+  if (_gbpAccessToken && Date.now() < _gbpTokenExpiry - 60000) return _gbpAccessToken;
+  const body = new URLSearchParams({
+    client_id:     cfg.clientId,
+    client_secret: cfg.clientSecret,
+    refresh_token: cfg.refreshToken,
+    grant_type:    'refresh_token'
+  });
+  const resp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString()
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`GBP token refresh failed: ${resp.status} ${err}`);
+  }
+  const data = await resp.json();
+  _gbpAccessToken = data.access_token;
+  _gbpTokenExpiry = Date.now() + (data.expires_in || 3600) * 1000;
+  return _gbpAccessToken;
+}
+
+app.get('/api/reviews', async (req, res) => {
+  const cfg = config.googleReviews;
+
+  // API access not yet configured — return pending state so the UI shows the right message
+  if (!cfg || !cfg.enabled) {
+    return res.json({ pending: true, message: 'Google Business Profile API credentials not yet configured.' });
+  }
+
+  try {
+    const token = await getGbpAccessToken(cfg);
+
+    // If no accountName is set, discover accounts first
+    let accountName = cfg.accountName;
+    if (!accountName) {
+      const acctResp = await apiFetch(
+        'https://mybusinessaccountmanagement.googleapis.com/v1/accounts',
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const accounts = acctResp?.accounts || [];
+      if (!accounts.length) {
+        return res.status(404).json({ error: 'No GBP accounts found for this credential.' });
+      }
+      accountName = accounts[0].name; // e.g. "accounts/123456789"
+    }
+
+    // Fetch up to 200 reviews (GBP API max per page is 200)
+    const reviewsUrl = `https://mybusiness.googleapis.com/v4/${accountName}/locations/-/reviews?pageSize=200`;
+    const reviewsData = await apiFetch(reviewsUrl, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    const reviews = reviewsData?.reviews || [];
+
+    // Map star rating strings → integers (GBP API returns "FIVE", "FOUR", etc.)
+    const starMap = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
+    const mapped = reviews.map(r => ({
+      ...r,
+      starRating: typeof r.starRating === 'string' ? (starMap[r.starRating] || 0) : (r.starRating || 0)
+    }));
+
+    res.json({ reviews: mapped, totalReviews: mapped.length, fetchedAt: new Date().toISOString() });
+  } catch (err) {
+    console.error('[GBP Reviews] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+
 const PORT = config.server.port;
 app.listen(PORT, () => {
   console.log('');
@@ -2543,6 +2634,7 @@ app.listen(PORT, () => {
   console.log(`   Facebook   ${config.facebook?.enabled ? '[OK] Configured' : '[ ] Not configured'}`);
   console.log(`   Instagram  ${config.instagram?.enabled ? '[OK] Configured' : '[ ] Not configured'}`);
   console.log(`   LinkedIn   ${config.linkedin?.enabled ? '[OK] Configured' : '[ ] Not configured'}`);
+  console.log(`   GBP Reviews${config.googleReviews?.enabled ? '[OK] Configured' : '[ ] Pending GBP API access approval'}`);
   console.log('');
   // Audience Pulse: trigger background generation if cache is empty or stale (week rollover)
   pulse.maybeBackgroundGenerate();
