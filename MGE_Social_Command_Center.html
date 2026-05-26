@@ -3240,6 +3240,15 @@
         .reviews-api-pending-icon { font-size: 36px; margin-bottom: 12px; }
         .reviews-api-pending-title { font-size: 17px; font-weight: 700; color: #1e40af; margin-bottom: 8px; }
         .reviews-api-pending-text { font-size: 13px; color: #3b82f6; line-height: 1.6; }
+        .reviews-embed-wrap {
+            border-radius: 12px; overflow: hidden;
+            box-shadow: 0 4px 20px -4px rgba(15,23,42,0.12);
+            border: 1px solid #e2e8f0; margin-bottom: 12px;
+        }
+        .reviews-embed-note {
+            font-size: 12px; color: #94a3b8; line-height: 1.5;
+            padding: 8px 4px;
+        }
 
     </style>
 </head>
@@ -3705,47 +3714,30 @@
         <div class="reviews-header">
             <div>
                 <div class="reviews-title">Company Reviews</div>
-                <div class="reviews-subtitle">Google Business Profile reviews for Madison Gas and Electric Company — monitor customer feedback and identify reviews that need a response.</div>
+                <div class="reviews-subtitle">Google Business Profile reviews for Madison Gas and Electric Company. Browse and monitor customer feedback below — click any review in the panel to read it in full.</div>
             </div>
             <div class="reviews-meta">
-                <div>Last refreshed: <strong id="reviewsLastRefreshed">--</strong></div>
-                <div style="margin-top:8px;">
-                    <a class="reviews-gbp-link" href="https://business.google.com/reviews" target="_blank" rel="noopener">↗ Open in Google</a>
-                </div>
+                <a class="reviews-gbp-link" href="https://business.google.com/reviews" target="_blank" rel="noopener">↗ Respond on Google</a>
             </div>
         </div>
 
-        <!-- Summary panel (hidden until data loads) -->
-        <div class="reviews-summary" id="reviewsSummary" style="display:none; display:flex;">
-            <div class="reviews-score-block">
-                <div class="reviews-score-number" id="reviewsAvgScore">--</div>
-                <div class="reviews-score-stars" id="reviewsAvgStars">☆☆☆☆☆</div>
-                <div class="reviews-score-count"><span id="reviewsTotalCount">--</span> reviews</div>
-            </div>
-            <div class="reviews-divider"></div>
-            <div class="reviews-breakdown" id="reviewsBreakdown"></div>
+        <!-- Google Maps embed — shows MGE business listing with star rating + scrollable reviews -->
+        <div class="reviews-embed-wrap">
+            <iframe
+                src="https://maps.google.com/maps?q=Madison+Gas+and+Electric+Company,+133+S+Blair+St,+Madison,+WI+53703&output=embed"
+                width="100%"
+                height="640"
+                style="border:0; border-radius:12px; display:block;"
+                allowfullscreen=""
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"
+                title="Madison Gas and Electric — Google Business Profile"
+            ></iframe>
         </div>
 
-        <!-- Filter + sort bar (hidden until data loads) -->
-        <div class="reviews-filter-bar" id="reviewsFilterBar" style="display:none; display:flex;">
-            <button class="reviews-filter-chip active" data-filter="all" onclick="filterReviews('all', this)">All</button>
-            <button class="reviews-filter-chip" data-filter="5" onclick="filterReviews('5', this)">★ 5</button>
-            <button class="reviews-filter-chip" data-filter="4" onclick="filterReviews('4', this)">★ 4</button>
-            <button class="reviews-filter-chip" data-filter="3" onclick="filterReviews('3', this)">★ 3</button>
-            <button class="reviews-filter-chip" data-filter="2" onclick="filterReviews('2', this)">★ 2</button>
-            <button class="reviews-filter-chip" data-filter="1" onclick="filterReviews('1', this)">★ 1</button>
-            <button class="reviews-filter-chip" data-filter="no-reply" onclick="filterReviews('no-reply', this)">⚠ Needs Reply</button>
-            <div class="reviews-filter-sep"></div>
-            <span class="reviews-sort-label">Sort:</span>
-            <select class="reviews-sort-select" id="reviewsSortSelect" onchange="sortAndRenderReviews()">
-                <option value="newest">Newest First</option>
-                <option value="lowest">Lowest Rating</option>
-                <option value="no-reply">Needs Reply First</option>
-            </select>
+        <div class="reviews-embed-note">
+            ℹ️ Viewing via Google Maps embed. Click the business name or star rating in the panel on the left to open the full reviews list. To write a response to a review, use the <a href="https://business.google.com/reviews" target="_blank" rel="noopener" style="color:#006553;font-weight:600;">Respond on Google</a> link above.
         </div>
-
-        <!-- Cards grid -->
-        <div class="reviews-grid" id="reviewsGrid"></div>
 
     </div>
 </div><!-- /#reviewsView -->
@@ -8313,7 +8305,7 @@ async function renderInsightsPanel(data, previousData, force) {
         if (reviewsViewEl) reviewsViewEl.classList.toggle('active', view === 'reviews');
         if (view === 'mentions' && !_mentionsState.data) loadMentionsWithAutoRefresh();
         if (view === 'pulse' && typeof loadPulseData === 'function') loadPulseData();
-        if (view === 'reviews') loadReviewsData();
+        // reviews tab is static iframe — no data load needed
     };
 
     /* ============ Company Reviews ============ */
