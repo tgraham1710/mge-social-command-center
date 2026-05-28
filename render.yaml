@@ -36,3 +36,7 @@ services:
         sync: false
       - key: INSIGHTS_MODEL
         sync: false
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
