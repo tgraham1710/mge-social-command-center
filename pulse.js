@@ -221,16 +221,52 @@ async function searchRedditPosts(theme, timeWindow) {
 }
 
 async function fetchRedditPostsForTheme(theme) {
-  // Try month first
-  let posts = await searchRedditPosts(theme, 'month');
-  await delay(REDDIT_DELAY_MS);
-  // If too few results, widen to year (low-volume themes like rate cases)
-  if (posts.length < 5) {
-    const yearPosts = await searchRedditPosts(theme, 'year');
+  // Browse top posts directly from the theme's curated subreddits (1–3 months).
+  // This is more reliable than the search endpoint, which is blocked from
+  // server/datacenter IPs. The subreddit list is the relevance gate.
+  const posts = [];
+  const seen = new Set();
+
+  async function browseSubreddit(sub, timeWindow) {
+    const url = 'https://www.reddit.com/r/' + sub + '/top.json?t=' + timeWindow + '&limit=15';
+    const data = await fetchRedditWithRetry(url, theme.id + '-top-' + sub + '-' + timeWindow);
     await delay(REDDIT_DELAY_MS);
-    const seen = new Set(posts.map(p => p.id));
-    for (const p of yearPosts) if (!seen.has(p.id)) posts.push(p);
+    const children = (data && data.data && data.data.children) || [];
+    for (const c of children) {
+      const d = c.data;
+      if (!d || !d.id || seen.has(d.id)) continue;
+      if ((d.score || 0) < 2) continue;
+      seen.add(d.id);
+      posts.push({
+        source: 'reddit',
+        id: d.id,
+        title: d.title || '',
+        selftext: (d.selftext || '').slice(0, 600),
+        subreddit: d.subreddit || '',
+        author: d.author || '',
+        score: d.score || 0,
+        comments: d.num_comments || 0,
+        createdAt: new Date((d.created_utc || 0) * 1000).toISOString(),
+        permalink: d.permalink || '',
+        url: 'https://www.reddit.com' + (d.permalink || '')
+      });
+    }
   }
+
+  // Primary: top 3 subreddits, past month
+  for (const sub of theme.subreddits.slice(0, 3)) {
+    await browseSubreddit(sub, 'month');
+    if (posts.length >= 20) break;
+  }
+
+  // Fallback: if still thin, widen to 3 months via the remaining subreddits
+  if (posts.length < 5) {
+    for (const sub of theme.subreddits) {
+      await browseSubreddit(sub, 'year');
+      if (posts.length >= 15) break;
+    }
+  }
+
   posts.sort((a, b) => (b.score + b.comments) - (a.score + a.comments));
   return posts.slice(0, 25);
 }
