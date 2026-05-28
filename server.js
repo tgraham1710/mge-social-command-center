@@ -47,6 +47,7 @@ function loadConfig() {
       refreshToken: process.env.GBP_REFRESH_TOKEN || fileConfig?.googleReviews?.refreshToken || '',
       // GBP account name format: "accounts/XXXXXXXXXX"
       accountName:  process.env.GBP_ACCOUNT_NAME  || fileConfig?.googleReviews?.accountName  || ''
+        locationName: process.env.GBP_LOCATION_NAME || fileConfig?.googleReviews?.locationName || ''
     },
     server: {
       port: parseInt(process.env.PORT || fileConfig?.server?.port || '3000', 10),
@@ -2569,12 +2570,82 @@ async function getGbpAccessToken(cfg) {
   return _gbpAccessToken;
 }
 
+// ================================================================
+// Google Business Profile Reviews
+// ================================================================
 app.get('/api/reviews', async (req, res) => {
-  const cfg = config.googleReviews;
+  try {
+    const gbp = config.googleReviews;
+    if (!gbp.enabled) {
+      return res.json({ pending: true, message: 'Google Business Profile credentials not configured' });
+    }
 
-  // API access not yet configured — return pending state so the UI shows the right message
-  if (!cfg || !cfg.enabled) {
-    return res.json({ pending: true, message: 'Google Business Profile API credentials not yet configured.' });
+    // 1. Exchange refresh token for a short-lived access token
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id:     gbp.clientId,
+        client_secret: gbp.clientSecret,
+        refresh_token: gbp.refreshToken,
+        grant_type:    'refresh_token'
+      }).toString()
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) {
+      throw new Error('OAuth token refresh failed: ' + (tokenData.error_description || tokenData.error || 'unknown'));
+    }
+    const accessToken = tokenData.access_token;
+
+    // 2. Resolve location resource name
+    //    Priority: GBP_LOCATION_NAME env var → auto-discover from account
+    let locationName = gbp.locationName || '';
+    if (!locationName && gbp.accountName) {
+      const locRes = await fetch(
+        `https://mybusinessbusinessinformation.googleapis.com/v1/${gbp.accountName}/locations?readMask=name,title`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const locData = await locRes.json();
+      if (locData.locations?.length) {
+        const loc = locData.locations[0];
+        locationName = loc.name.startsWith('accounts/')
+          ? loc.name
+          : `${gbp.accountName}/${loc.name}`;
+      }
+    }
+    if (!locationName) {
+      return res.json({
+        pending: true,
+        message: 'GBP location not found. Set GBP_LOCATION_NAME env var (format: accounts/XXX/locations/YYY).'
+      });
+    }
+
+    // 3. Fetch reviews from GBP API
+    const reviewsRes = await fetch(
+      `https://mybusinessreviews.googleapis.com/v1/${locationName}/reviews?pageSize=50`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    const reviewsData = await reviewsRes.json();
+    if (reviewsData.error) throw new Error(reviewsData.error.message || JSON.stringify(reviewsData.error));
+
+    // 4. Normalize star ratings — GBP returns "FIVE", "FOUR", etc.
+    const starMap = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
+    const reviews = (reviewsData.reviews || []).map(r => ({
+      ...r,
+      starRating: typeof r.starRating === 'string' ? (starMap[r.starRating] ?? 0) : r.starRating
+    }));
+
+    res.json({
+      reviews,
+      averageRating:    reviewsData.averageRating    ?? null,
+      totalReviewCount: reviewsData.totalReviewCount ?? reviews.length
+    });
+
+  } catch (err) {
+    console.error('[GBP Reviews] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch Google Business reviews', detail: err.message });
+  }
+});
   }
 
   try {
