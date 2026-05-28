@@ -2612,6 +2612,11 @@ app.get('/api/reviews', async (req, res) => {
     res.json({ reviews: mapped, totalReviews: mapped.length, fetchedAt: new Date().toISOString() });
   } catch (err) {
     console.error('[GBP Reviews] Error:', err.message);
+    // OAuth token errors (invalid_grant, bad credentials, etc.) mean credentials exist
+    // but are stale or invalid — treat as pending so the UI shows the correct message
+    if (err.message && (err.message.includes('invalid_grant') || err.message.includes('token refresh failed'))) {
+      return res.json({ pending: true });
+    }
     res.status(500).json({ error: err.message });
   }
 });
