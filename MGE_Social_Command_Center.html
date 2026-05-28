@@ -3682,6 +3682,7 @@
             <div class="pulse-meta">
                 <div>Generated <strong id="pulseGeneratedAt">--</strong></div>
                 <div id="pulseWeekId" style="opacity:0.7; margin-top:2px;">--</div>
+                <button id="pulseRegenBtn" onclick="forceRefreshPulse()" style="margin-top:10px;padding:5px 12px;font-size:12px;border-radius:6px;border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;cursor:pointer;font-weight:600;letter-spacing:0.02em;" title="Force a fresh Reddit scan for this week">↻ Regenerate</button>
             </div>
         </div>
 
@@ -3757,10 +3758,9 @@
             <!-- Pending state shown by default until API is connected -->
             <div class="reviews-api-pending">
                 <div class="reviews-api-pending-icon">⏳</div>
-                <div class="reviews-api-pending-title">Reviews Coming Soon</div>
+                <div class="reviews-api-pending-title">Pending per Google's Approval</div>
                 <div class="reviews-api-pending-text">
-                    Google Business Profile API access is being set up. Once connected, reviews will display here newest-first with star ratings, full review text, and filter by rating.<br><br>
-                    <strong>To activate:</strong> ask cwarner@mge.com to add taylormcgraham@gmail.com as a Manager on the MGE Google Business Profile, then submit the GBP API access form.
+                    Google Business Profile API access has been submitted and is pending Google's approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access and credentials are configured — typically 7–10 business days.
                 </div>
             </div>
         </div>
@@ -8447,8 +8447,8 @@ async function renderInsightsPanel(data, previousData, force) {
                 if (data && data.pending) {
                     grid.innerHTML = '<div class="reviews-api-pending">' +
                         '<div class="reviews-api-pending-icon">⏳</div>' +
-                        '<div class="reviews-api-pending-title">API Access Pending</div>' +
-                        '<div class="reviews-api-pending-text">Google Business Profile API access has been requested and is under review (typically 3–10 business days). Reviews will appear here automatically once access is approved and credentials are configured.</div>' +
+                        '<div class="reviews-api-pending-title">Pending per Google\'s Approval</div>' +
+                        '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
                         '</div>';
                     return;
                 }
@@ -8962,6 +8962,30 @@ async function renderInsightsPanel(data, previousData, force) {
         if (_pulsePollInterval) { clearInterval(_pulsePollInterval); _pulsePollInterval = null; }
     }
 
+    // Force a completely fresh Pulse scan — resets in-memory state, shows spinner,
+    // hits the /regenerate endpoint, then re-polls until the new cache arrives.
+    window.forceRefreshPulse = function() {
+        var btn = document.getElementById('pulseRegenBtn');
+        if (btn) { btn.disabled = true; btn.textContent = '↻ Regenerating…'; }
+        clearPulsePoll();
+        _pulseState.data = null;
+        _pulseState.loading = false;
+        _pulseState.hasFetched = false;
+        var grid = document.getElementById('pulseCardsGrid');
+        if (grid) grid.innerHTML = '';
+        var genEl = document.getElementById('pulseGeneratedAt');
+        var weekEl = document.getElementById('pulseWeekId');
+        if (genEl) genEl.textContent = '--';
+        if (weekEl) weekEl.textContent = '--';
+        // Kick off generation immediately (bypasses cache), then poll
+        fetch('/api/pulse/regenerate', { method: 'POST', cache: 'no-store' })
+            .catch(function() {})
+            .finally(function() { loadPulseData(); });
+        setTimeout(function() {
+            if (btn) { btn.disabled = false; btn.textContent = '↻ Regenerate'; }
+        }, 10000);
+    };
+
     window.loadPulseData = function() {
         if (_pulseState.loading) return;
         var loadingEl = document.getElementById('pulseLoading');
@@ -8987,6 +9011,9 @@ async function renderInsightsPanel(data, previousData, force) {
                         renderPulseHeader(data);
                         renderPulseCards(data);
                         checkNewPill(data && data.weekId);
+                        // Re-enable the Regenerate button in case it was disabled
+                        var btn = document.getElementById('pulseRegenBtn');
+                        if (btn) { btn.disabled = false; btn.textContent = '↻ Regenerate'; }
                         return;
                     }
                     // Still pending — update UI message and keep polling
@@ -9151,6 +9178,17 @@ async function renderInsightsPanel(data, previousData, force) {
             posts.textContent = (theme.postCount || 0) + ' posts';
             vitals.appendChild(posts);
             body.appendChild(vitals);
+
+            // If no posts were found for this theme, show an inline note instead of empty chips
+            if ((theme.postCount || 0) === 0) {
+                var noPosts = document.createElement('div');
+                noPosts.style.cssText = 'font-size:11px;color:#94a3b8;padding:6px 0 2px;font-style:italic;';
+                noPosts.textContent = 'No Reddit posts found this week for this theme.';
+                body.appendChild(noPosts);
+                card.appendChild(body);
+                grid.appendChild(card);
+                return; // Skip chip rendering for empty themes
+            }
 
             // Inline like + pain chips (top item from each)
             var chipsWrap = document.createElement('div');
