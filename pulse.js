@@ -20,6 +20,41 @@ const HAIKU_MODEL = process.env.PULSE_CLAUDE_MODEL || 'claude-haiku-4-5-20251001
 const GEMINI_MODEL = process.env.PULSE_GEMINI_MODEL || 'gemini-2.0-flash';
 const REDDIT_UA = 'MGE-Social-Command-Center/1.0 (by u/taylormcgraham; Audience Pulse theme monitoring)';
 
+// Reddit OAuth token cache (client_credentials flow)
+// Set REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET in Render env vars to enable.
+// When set, requests go to oauth.reddit.com (works from any server IP).
+// Without them, requests hit www.reddit.com and will 403 from Render's IPs.
+let _redditToken = null;
+let _redditTokenExpiry = 0;
+
+async function getRedditToken() {
+  if (_redditToken && Date.now() < _redditTokenExpiry) return _redditToken;
+  const clientId = process.env.REDDIT_CLIENT_ID;
+  const clientSecret = process.env.REDDIT_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+  try {
+    const creds = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const resp = await fetch('https://www.reddit.com/api/v1/access_token', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${creds}`,
+        'User-Agent': REDDIT_UA,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: 'grant_type=client_credentials'
+    });
+    if (!resp.ok) { console.warn('[PULSE] Reddit OAuth failed:', resp.status); return null; }
+    const data = await resp.json();
+    _redditToken = data.access_token;
+    _redditTokenExpiry = Date.now() + ((data.expires_in || 3600) - 120) * 1000; // renew 2 min early
+    console.log('[PULSE] Reddit OAuth token acquired (expires in ~' + Math.round((data.expires_in || 3600) / 60) + ' min)');
+    return _redditToken;
+  } catch (e) {
+    console.warn('[PULSE] Reddit OAuth error:', e.message);
+    return null;
+  }
+}
+
 // Rate limiting / retry
 const REDDIT_DELAY_MS = 3000;       // bumped from 1.5s — Reddit 429s consistently around theme 7 with 1.5s
 const CLAUDE_DELAY_MS = 3000;       // ~20 RPM, well under tier-1 50 RPM limit
@@ -158,12 +193,18 @@ function sentimentDelta(currentSent, priorSent) {
 // Reddit fetch with retry
 // ============================================================
 async function fetchRedditWithRetry(url, label) {
+  // Swap host to oauth.reddit.com when we have a token — the OAuth host
+  // is not IP-blocked, unlike www.reddit.com on datacenter/cloud IPs.
+  const token = await getRedditToken();
+  const reqUrl = token ? url.replace('https://www.reddit.com/', 'https://oauth.reddit.com/') : url;
+  const reqHeaders = token
+    ? { 'Authorization': `Bearer ${token}`, 'User-Agent': REDDIT_UA, 'Accept': 'application/json' }
+    : { 'User-Agent': REDDIT_UA, 'Accept': 'application/json' };
+
   let lastErr;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const resp = await fetch(url, {
-        headers: { 'User-Agent': REDDIT_UA, 'Accept': 'application/json' }
-      });
+      const resp = await fetch(reqUrl, { headers: reqHeaders });
       if (resp.status === 429 || resp.status === 503) {
         const wait = Math.pow(2, attempt) * 3000;
         console.warn(' [PULSE] Reddit ' + resp.status + ' for ' + label + ', waiting ' + wait + 'ms');
