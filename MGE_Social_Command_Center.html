@@ -8452,8 +8452,20 @@ async function renderInsightsPanel(data, previousData, force) {
                         '</div>';
                     return;
                 }
+                if (data && data.error) {
+                    grid.innerHTML = '<div class="reviews-api-pending">' +
+                        '<div class="reviews-api-pending-icon">⏳</div>' +
+                        '<div class="reviews-api-pending-title">Pending per Google\'s Approval</div>' +
+                        '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
+                        '</div>';
+                    return;
+                }
                 if (!data || !data.reviews || !data.reviews.length) {
-                    grid.innerHTML = '<div class="reviews-empty"><div class="reviews-empty-icon">📋</div><div class="reviews-empty-text">No reviews found</div><div class="reviews-empty-sub">Reviews will appear here once the Google Business Profile API is connected.</div></div>';
+                    grid.innerHTML = '<div class="reviews-api-pending">' +
+                        '<div class="reviews-api-pending-icon">⏳</div>' +
+                        '<div class="reviews-api-pending-title">Pending per Google\'s Approval</div>' +
+                        '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
+                        '</div>';
                     return;
                 }
                 _reviewsState.data = data.reviews;
@@ -8467,8 +8479,8 @@ async function renderInsightsPanel(data, previousData, force) {
             .catch(function() {
                 grid.innerHTML = '<div class="reviews-api-pending">' +
                     '<div class="reviews-api-pending-icon">⏳</div>' +
-                    '<div class="reviews-api-pending-title">API Access Pending</div>' +
-                    '<div class="reviews-api-pending-text">Google Business Profile API access has been requested and is under review (typically 3–10 business days). Reviews will appear here automatically once access is approved and credentials are configured.</div>' +
+                    '<div class="reviews-api-pending-title">Pending per Google\'s Approval</div>' +
+                    '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
                     '</div>';
             });
     };
