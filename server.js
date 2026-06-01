@@ -89,28 +89,31 @@ function recordFailure(ip) {
 }
 function clearAttempts(ip) { loginAttempts.delete(ip); }
 
-// Simple math CAPTCHA: generate a question and answer
-function makeCaptcha() {
-  const a = Math.floor(Math.random() * 9) + 1;
-  const b = Math.floor(Math.random() * 9) + 1;
-  return { q: `${a} + ${b}`, ans: String(a + b) };
+// Visual CAPTCHA: random 5-char alphanumeric string
+const CAPTCHA_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function makeCaptchaText() {
+  return Array.from({length: 5}, () => CAPTCHA_CHARS[Math.floor(Math.random() * CAPTCHA_CHARS.length)]).join('');
 }
-// Store active captchas: token → {ans, expires}
 const captchas = new Map();
-function newCaptchaToken(ans) {
+function newCaptchaToken(text) {
   const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
-  captchas.set(token, { ans, expires: Date.now() + 5 * 60 * 1000 });
+  captchas.set(token, { ans: text.toUpperCase(), expires: Date.now() + 5 * 60 * 1000 });
   return token;
 }
 function validateCaptcha(token, guess) {
   const c = captchas.get(token);
   if (!c || Date.now() > c.expires) return false;
   captchas.delete(token);
-  return guess === c.ans;
+  return (guess || '').toUpperCase().trim() === c.ans;
 }
 
-function loginPage(errorMsg, captchaQ, captchaToken) {
-  return `<!DOCTYPE html><html><head><title>MGE Audience Insights Hub</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a2744;display:flex;justify-content:center;align-items:center;min-height:100vh}.card{background:#fff;border-radius:12px;padding:40px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3)}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:18px;font-weight:700;color:#0a2744;line-height:1.3}.logo p{font-size:13px;color:#666;margin-top:4px}label{display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px;margin-top:14px}input{width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;outline:none;transition:border-color .2s}input:focus{border-color:#0a2744}.captcha-row{display:flex;align-items:center;gap:10px}.captcha-q{font-size:16px;font-weight:700;color:#0a2744;white-space:nowrap}.captcha-row input{flex:1}button{width:100%;margin-top:20px;padding:12px;background:#0a2744;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:background .2s}button:hover{background:#1a3d6e}.error{color:#c0392b;font-size:13px;margin-top:12px;text-align:center;padding:8px;background:#fdf0f0;border-radius:6px}</style></head><body><div class="card"><div class="logo"><h1>MGE Audience Insights Hub</h1><p>Madison Gas and Electric | Marketing &amp; Communications</p></div><form method="POST" action="/auth/login"><label for="pw">Password</label><input type="password" id="pw" name="pw" placeholder="Enter password" autofocus required><label>Security Check</label><div class="captcha-row"><span class="captcha-q">${captchaQ} =</span><input type="number" name="captcha_ans" placeholder="?" required style="width:80px"></div><input type="hidden" name="captcha_token" value="${captchaToken}">${errorMsg ? `<p class="error">${errorMsg}</p>` : ''}<button type="submit">Sign In</button></form></div></body></html>`;
+function loginPage(errorMsg, captchaText, captchaToken) {
+  // Canvas CAPTCHA rendered client-side with the text embedded
+  return `<!DOCTYPE html><html><head><title>MGE Audience Insights Hub</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a2744;display:flex;justify-content:center;align-items:center;min-height:100vh}.card{background:#fff;border-radius:12px;padding:40px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,0.3)}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:18px;font-weight:700;color:#0a2744;line-height:1.3}.logo p{font-size:13px;color:#666;margin-top:4px}label{display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px;margin-top:16px}input[type=password],input[type=text]{width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;outline:none;transition:border-color .2s}input:focus{border-color:#0a2744}.captcha-wrap{display:flex;align-items:center;gap:10px;margin-top:6px}canvas{border-radius:6px;border:1.5px solid #ddd;flex-shrink:0}.refresh-btn{background:none;border:none;cursor:pointer;color:#0a2744;font-size:20px;padding:4px;line-height:1;width:auto;margin:0}input[type=text].captcha-input{flex:1}button[type=submit]{width:100%;margin-top:20px;padding:12px;background:#0a2744;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:background .2s}button[type=submit]:hover{background:#1a3d6e}.error{color:#c0392b;font-size:13px;margin-top:12px;text-align:center;padding:8px;background:#fdf0f0;border-radius:6px}</style></head><body><div class="card"><div class="logo"><h1>MGE Audience Insights Hub</h1><p>Madison Gas and Electric | Marketing &amp; Communications</p></div><form method="POST" action="/auth/login"><label for="pw">Password</label><input type="password" id="pw" name="pw" placeholder="Enter password" autofocus required><label>Security Check — type the characters you see</label><div class="captcha-wrap"><canvas id="cap" width="160" height="52"></canvas><button type="button" class="refresh-btn" onclick="drawCaptcha()" title="Refresh">↻</button></div><input type="text" class="captcha-input" name="captcha_ans" placeholder="Enter characters" required autocomplete="off" spellcheck="false"><input type="hidden" name="captcha_token" value="${captchaToken}">${errorMsg ? `<p class="error">${errorMsg}</p>` : ''}<button type="submit">Sign In</button></form></div><script>const CTEXT="${captchaText}";function drawCaptcha(){const c=document.getElementById('cap'),ctx=c.getContext('2d');const w=c.width,h=c.height;ctx.clearRect(0,0,w,h);// Background gradient
+const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,'#e8eef7');g.addColorStop(1,'#d0daea');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);// Noise dots
+for(let i=0;i<80;i++){ctx.fillStyle='rgba('+Math.floor(Math.random()*100)+','+Math.floor(Math.random()*100)+','+Math.floor(Math.random()*150)+',0.3)';ctx.beginPath();ctx.arc(Math.random()*w,Math.random()*h,Math.random()*2,0,Math.PI*2);ctx.fill()}// Interference lines
+for(let i=0;i<4;i++){ctx.strokeStyle='rgba('+Math.floor(Math.random()*80)+','+Math.floor(Math.random()*80)+','+Math.floor(Math.random()*120)+',0.4)';ctx.lineWidth=1+Math.random();ctx.beginPath();ctx.moveTo(Math.random()*w,Math.random()*h);ctx.bezierCurveTo(Math.random()*w,Math.random()*h,Math.random()*w,Math.random()*h,Math.random()*w,Math.random()*h);ctx.stroke()}// Draw each character with random rotation and position jitter
+const fonts=['Arial','Georgia','Verdana','Courier New'];const colors=['#0a2744','#1a3d6e','#8b0000','#006400','#4b0082'];ctx.textBaseline='middle';const cw=w/CTEXT.length;for(let i=0;i<CTEXT.length;i++){ctx.save();const x=cw*i+cw/2;const y=h/2+(Math.random()*8-4);ctx.translate(x,y);ctx.rotate((Math.random()-0.5)*0.5);ctx.font=(22+Math.floor(Math.random()*8))+'px '+fonts[Math.floor(Math.random()*fonts.length)];ctx.fillStyle=colors[Math.floor(Math.random()*colors.length)];ctx.fillText(CTEXT[i],0,0);ctx.restore()}}drawCaptcha();</script></body></html>`;
 }
 
 if (DASHBOARD_PASSWORD) {
@@ -118,9 +121,9 @@ if (DASHBOARD_PASSWORD) {
 
   // Login form
   app.get('/auth/login', (req, res) => {
-    const { q, ans } = makeCaptcha();
-    const token = newCaptchaToken(ans);
-    res.send(loginPage('', q, token));
+    const text = makeCaptchaText();
+    const token = newCaptchaToken(text);
+    res.send(loginPage('', text, token));
   });
 
   // Login POST
@@ -128,21 +131,21 @@ if (DASHBOARD_PASSWORD) {
     const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
 
     if (isLockedOut(ip)) {
-      const { q, ans } = makeCaptcha();
-      return res.send(loginPage('Too many failed attempts. Please wait 15 minutes.', q, newCaptchaToken(ans)));
+      const text = makeCaptchaText();
+      return res.send(loginPage('Too many failed attempts. Please wait 15 minutes.', text, newCaptchaToken(text)));
     }
 
     const captchaOk = validateCaptcha(req.body.captcha_token, req.body.captcha_ans?.trim());
     if (!captchaOk) {
       recordFailure(ip);
-      const { q, ans } = makeCaptcha();
-      return res.send(loginPage('Incorrect security code. Please try again.', q, newCaptchaToken(ans)));
+      const text = makeCaptchaText();
+      return res.send(loginPage('Incorrect security characters. Please try again.', text, newCaptchaToken(text)));
     }
 
     if (req.body.pw !== DASHBOARD_PASSWORD) {
       recordFailure(ip);
-      const { q, ans } = makeCaptcha();
-      return res.send(loginPage('Incorrect password. Please try again.', q, newCaptchaToken(ans)));
+      const text = makeCaptchaText();
+      return res.send(loginPage('Incorrect password. Please try again.', text, newCaptchaToken(text)));
     }
 
     clearAttempts(ip);
