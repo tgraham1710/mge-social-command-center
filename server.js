@@ -69,15 +69,17 @@ app.use((req, res, next) => {
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
 if (DASHBOARD_PASSWORD) {
   app.use((req, res, next) => {
-    if (req.path === '/' || req.path === '/index.html' || req.path.endsWith('.css') || req.path.endsWith('.js') || req.path.endsWith('.html')) {
-      const passwordParam = req.query.pw;
-      const passwordCookie = req.cookies?.dashboardAuth;
-      if (!passwordParam && !passwordCookie) {
-        return res.send(`<!DOCTYPE html><html><head><title>MGE Social Command Center - Login</title><style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#f5f5f5}.login-box{background:white;padding:40px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);width:100%;max-width:300px}h1{margin-top:0;color:#333;text-align:center}input{width:100%;padding:10px;margin:10px 0;border:1px solid #ddd;border-radius:4px;font-size:16px;box-sizing:border-box}button{width:100%;padding:10px;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;font-size:16px}button:hover{background:#0056b3}</style></head><body><div class="login-box"><h1>MGE Social Command Center</h1><form method="GET" action="/"><input type="password" name="pw" placeholder="Enter dashboard password" required autofocus><button type="submit">Login</button></form></div></body></html>`);
-      }
-      if ((passwordParam || passwordCookie) && (passwordParam !== DASHBOARD_PASSWORD && passwordCookie !== DASHBOARD_PASSWORD)) {
-        return res.status(403).send('Incorrect password');
-      }
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+      res.set('WWW-Authenticate', 'Basic realm="MGE Audience Insights Hub"');
+      return res.status(401).send('Authentication required');
+    }
+    const base64 = authHeader.slice(6);
+    const decoded = Buffer.from(base64, 'base64').toString('utf8');
+    const password = decoded.includes(':') ? decoded.split(':').slice(1).join(':') : decoded;
+    if (password !== DASHBOARD_PASSWORD) {
+      res.set('WWW-Authenticate', 'Basic realm="MGE Audience Insights Hub"');
+      return res.status(401).send('Incorrect password');
     }
     next();
   });
