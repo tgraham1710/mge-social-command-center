@@ -68,29 +68,92 @@ app.use((req, res, next) => {
 
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
 const SESSION_TOKEN = DASHBOARD_PASSWORD ? Buffer.from('mge-auth-' + DASHBOARD_PASSWORD).toString('base64') : null;
-const LOGIN_PAGE = `<!DOCTYPE html><html><head><title>MGE Audience Insights Hub</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a2744;display:flex;justify-content:center;align-items:center;min-height:100vh}.card{background:#fff;border-radius:12px;padding:40px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3)}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:18px;font-weight:700;color:#0a2744;line-height:1.3}.logo p{font-size:13px;color:#666;margin-top:4px}label{display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px}input[type=password]{width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;outline:none;transition:border-color .2s}input[type=password]:focus{border-color:#0a2744}button{width:100%;margin-top:16px;padding:12px;background:#0a2744;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:background .2s}button:hover{background:#1a3d6e}.error{color:#c0392b;font-size:13px;margin-top:10px;text-align:center}</style></head><body><div class="card"><div class="logo"><h1>MGE Audience Insights Hub</h1><p>Madison Gas and Electric | Marketing &amp; Communications</p></div><form method="POST" action="/auth/login"><label for="pw">Password</label><input type="password" id="pw" name="pw" placeholder="Enter password" autofocus required>ERROR_MSG<button type="submit">Sign In</button></form></div></body></html>`;
+
+// Rate limiting: track failed attempts per IP
+const loginAttempts = new Map();
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+function isLockedOut(ip) {
+  const rec = loginAttempts.get(ip);
+  if (!rec) return false;
+  if (rec.lockedUntil && Date.now() < rec.lockedUntil) return true;
+  if (rec.lockedUntil && Date.now() >= rec.lockedUntil) { loginAttempts.delete(ip); return false; }
+  return false;
+}
+function recordFailure(ip) {
+  const rec = loginAttempts.get(ip) || { count: 0 };
+  rec.count++;
+  if (rec.count >= MAX_ATTEMPTS) rec.lockedUntil = Date.now() + LOCKOUT_MS;
+  loginAttempts.set(ip, rec);
+}
+function clearAttempts(ip) { loginAttempts.delete(ip); }
+
+// Simple math CAPTCHA: generate a question and answer
+function makeCaptcha() {
+  const a = Math.floor(Math.random() * 9) + 1;
+  const b = Math.floor(Math.random() * 9) + 1;
+  return { q: `${a} + ${b}`, ans: String(a + b) };
+}
+// Store active captchas: token → {ans, expires}
+const captchas = new Map();
+function newCaptchaToken(ans) {
+  const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  captchas.set(token, { ans, expires: Date.now() + 5 * 60 * 1000 });
+  return token;
+}
+function validateCaptcha(token, guess) {
+  const c = captchas.get(token);
+  if (!c || Date.now() > c.expires) return false;
+  captchas.delete(token);
+  return guess === c.ans;
+}
+
+function loginPage(errorMsg, captchaQ, captchaToken) {
+  return `<!DOCTYPE html><html><head><title>MGE Audience Insights Hub</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a2744;display:flex;justify-content:center;align-items:center;min-height:100vh}.card{background:#fff;border-radius:12px;padding:40px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3)}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:18px;font-weight:700;color:#0a2744;line-height:1.3}.logo p{font-size:13px;color:#666;margin-top:4px}label{display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px;margin-top:14px}input{width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;outline:none;transition:border-color .2s}input:focus{border-color:#0a2744}.captcha-row{display:flex;align-items:center;gap:10px}.captcha-q{font-size:16px;font-weight:700;color:#0a2744;white-space:nowrap}.captcha-row input{flex:1}button{width:100%;margin-top:20px;padding:12px;background:#0a2744;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:background .2s}button:hover{background:#1a3d6e}.error{color:#c0392b;font-size:13px;margin-top:12px;text-align:center;padding:8px;background:#fdf0f0;border-radius:6px}</style></head><body><div class="card"><div class="logo"><h1>MGE Audience Insights Hub</h1><p>Madison Gas and Electric | Marketing &amp; Communications</p></div><form method="POST" action="/auth/login"><label for="pw">Password</label><input type="password" id="pw" name="pw" placeholder="Enter password" autofocus required><label>Security Check</label><div class="captcha-row"><span class="captcha-q">${captchaQ} =</span><input type="number" name="captcha_ans" placeholder="?" required style="width:80px"></div><input type="hidden" name="captcha_token" value="${captchaToken}">${errorMsg ? `<p class="error">${errorMsg}</p>` : ''}<button type="submit">Sign In</button></form></div></body></html>`;
+}
 
 if (DASHBOARD_PASSWORD) {
   app.use(express.urlencoded({ extended: false }));
 
   // Login form
   app.get('/auth/login', (req, res) => {
-    res.send(LOGIN_PAGE.replace('ERROR_MSG', ''));
+    const { q, ans } = makeCaptcha();
+    const token = newCaptchaToken(ans);
+    res.send(loginPage('', q, token));
   });
 
   // Login POST
   app.post('/auth/login', (req, res) => {
-    if (req.body.pw === DASHBOARD_PASSWORD) {
-      res.setHeader('Set-Cookie', `mge_auth=${SESSION_TOKEN}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`);
-      return res.redirect('/');
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
+
+    if (isLockedOut(ip)) {
+      const { q, ans } = makeCaptcha();
+      return res.send(loginPage('Too many failed attempts. Please wait 15 minutes.', q, newCaptchaToken(ans)));
     }
-    res.send(LOGIN_PAGE.replace('ERROR_MSG', '<p class="error">Incorrect password. Try again.</p>'));
+
+    const captchaOk = validateCaptcha(req.body.captcha_token, req.body.captcha_ans?.trim());
+    if (!captchaOk) {
+      recordFailure(ip);
+      const { q, ans } = makeCaptcha();
+      return res.send(loginPage('Incorrect security code. Please try again.', q, newCaptchaToken(ans)));
+    }
+
+    if (req.body.pw !== DASHBOARD_PASSWORD) {
+      recordFailure(ip);
+      const { q, ans } = makeCaptcha();
+      return res.send(loginPage('Incorrect password. Please try again.', q, newCaptchaToken(ans)));
+    }
+
+    clearAttempts(ip);
+    res.setHeader('Set-Cookie', `mge_auth=${SESSION_TOKEN}; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800`);
+    return res.redirect('/');
   });
 
   // Auth middleware — protect everything except login routes
   app.use((req, res, next) => {
     if (req.path.startsWith('/auth/')) return next();
-    const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map(c => c.trim().split('=').map(decodeURIComponent)));
+    const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map(c => { const [k,...v]=c.trim().split('='); return [k, v.join('=')]; }));
     if (cookies.mge_auth === SESSION_TOKEN) return next();
     return res.redirect('/auth/login');
   });
