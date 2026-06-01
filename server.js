@@ -67,21 +67,32 @@ app.use((req, res, next) => {
 });
 
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
+const SESSION_TOKEN = DASHBOARD_PASSWORD ? Buffer.from('mge-auth-' + DASHBOARD_PASSWORD).toString('base64') : null;
+const LOGIN_PAGE = `<!DOCTYPE html><html><head><title>MGE Audience Insights Hub</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a2744;display:flex;justify-content:center;align-items:center;min-height:100vh}.card{background:#fff;border-radius:12px;padding:40px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3)}.logo{text-align:center;margin-bottom:28px}.logo h1{font-size:18px;font-weight:700;color:#0a2744;line-height:1.3}.logo p{font-size:13px;color:#666;margin-top:4px}label{display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px}input[type=password]{width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;outline:none;transition:border-color .2s}input[type=password]:focus{border-color:#0a2744}button{width:100%;margin-top:16px;padding:12px;background:#0a2744;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:background .2s}button:hover{background:#1a3d6e}.error{color:#c0392b;font-size:13px;margin-top:10px;text-align:center}</style></head><body><div class="card"><div class="logo"><h1>MGE Audience Insights Hub</h1><p>Madison Gas and Electric | Marketing &amp; Communications</p></div><form method="POST" action="/auth/login"><label for="pw">Password</label><input type="password" id="pw" name="pw" placeholder="Enter password" autofocus required>ERROR_MSG<button type="submit">Sign In</button></form></div></body></html>`;
+
 if (DASHBOARD_PASSWORD) {
+  app.use(express.urlencoded({ extended: false }));
+
+  // Login form
+  app.get('/auth/login', (req, res) => {
+    res.send(LOGIN_PAGE.replace('ERROR_MSG', ''));
+  });
+
+  // Login POST
+  app.post('/auth/login', (req, res) => {
+    if (req.body.pw === DASHBOARD_PASSWORD) {
+      res.setHeader('Set-Cookie', `mge_auth=${SESSION_TOKEN}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`);
+      return res.redirect('/');
+    }
+    res.send(LOGIN_PAGE.replace('ERROR_MSG', '<p class="error">Incorrect password. Try again.</p>'));
+  });
+
+  // Auth middleware — protect everything except login routes
   app.use((req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader || !authHeader.startsWith('Basic ')) {
-      res.set('WWW-Authenticate', 'Basic realm="MGE Audience Insights Hub"');
-      return res.status(401).send('Authentication required');
-    }
-    const base64 = authHeader.slice(6);
-    const decoded = Buffer.from(base64, 'base64').toString('utf8');
-    const password = decoded.includes(':') ? decoded.split(':').slice(1).join(':') : decoded;
-    if (password !== DASHBOARD_PASSWORD) {
-      res.set('WWW-Authenticate', 'Basic realm="MGE Audience Insights Hub"');
-      return res.status(401).send('Incorrect password');
-    }
-    next();
+    if (req.path.startsWith('/auth/')) return next();
+    const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map(c => c.trim().split('=').map(decodeURIComponent)));
+    if (cookies.mge_auth === SESSION_TOKEN) return next();
+    return res.redirect('/auth/login');
   });
 }
 
