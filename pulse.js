@@ -18,7 +18,7 @@ const CACHE_FILE = path.join(__dirname, 'pulse-cache.json');
 const PREV_CACHE_FILE = path.join(__dirname, 'pulse-cache-prev.json');
 const HAIKU_MODEL = process.env.PULSE_CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
 const GEMINI_MODEL = process.env.PULSE_GEMINI_MODEL || 'gemini-2.0-flash';
-const REDDIT_UA = 'MGE-Social-Command-Center/1.0 (by u/taylormcgraham; Audience Pulse theme monitoring)';
+const REDDIT_UA = 'MGE-Social-Command-Center/1.0 (by u/MGEsocial; Audience Pulse theme monitoring)';
 
 // Reddit OAuth token cache (client_credentials flow)
 // Set REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET in Render env vars to enable.
