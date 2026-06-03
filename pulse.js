@@ -312,6 +312,86 @@ async function fetchRedditPostsForTheme(theme) {
   return posts.slice(0, 25);
 }
 
+// ============================================================
+// HackerNews (Algolia) fetch — credential-free fallback when Reddit is IP-blocked
+// HN Algolia is open to any IP, no auth required, covers energy/tech topics well.
+// Best theme coverage: EVs, Data Centers, Renewable Energy, Electrification, Solar.
+// Moderate coverage: Energy Conservation, Affordability.
+// ============================================================
+async function fetchHackerNewsPostsForTheme(theme) {
+  const posts = [];
+  const seen = new Set();
+  // Use top 4 keywords; each query = ~15 results from past 90 days
+  const keywordsToTry = theme.keywords.slice(0, 4);
+  const since90d = Math.floor((Date.now() - 90 * 24 * 60 * 60 * 1000) / 1000);
+
+  for (const keyword of keywordsToTry) {
+    try {
+      const url = 'https://hn.algolia.com/api/v1/search' +
+        '?query=' + encodeURIComponent(keyword) +
+        '&tags=story' +
+        '&hitsPerPage=15' +
+        '&numericFilters=' + encodeURIComponent('created_at_i>' + since90d + ',points>2');
+      const resp = await fetch(url, {
+        headers: { 'Accept': 'application/json', 'User-Agent': REDDIT_UA }
+      });
+      if (!resp.ok) {
+        console.warn(' [PULSE] HN Algolia ' + resp.status + ' for "' + keyword + '"');
+        await delay(500);
+        continue;
+      }
+      const data = await resp.json();
+      const hits = (data && data.hits) || [];
+      for (const hit of hits) {
+        if (!hit.objectID || seen.has(hit.objectID)) continue;
+        seen.add(hit.objectID);
+        posts.push({
+          source: 'hackernews',
+          id: hit.objectID,
+          title: hit.title || '',
+          selftext: '',
+          subreddit: '',
+          author: hit.author || '',
+          score: hit.points || 0,
+          comments: hit.num_comments || 0,
+          createdAt: hit.created_at || new Date().toISOString(),
+          permalink: '',
+          url: hit.url || ('https://news.ycombinator.com/item?id=' + hit.objectID)
+        });
+      }
+    } catch (e) {
+      console.warn(' [PULSE] HN fetch error for "' + keyword + '":', e.message);
+    }
+    await delay(500);
+  }
+
+  posts.sort((a, b) => (b.score + b.comments) - (a.score + a.comments));
+  console.log(' [PULSE] HN fallback for ' + theme.label + ': ' + posts.length + ' posts');
+  return posts.slice(0, 25);
+}
+
+// Fetch top comments for a HackerNews story via Algolia items API
+async function fetchHNCommentsForPost(post, limit) {
+  if (!post.id) return [];
+  try {
+    const resp = await fetch('https://hn.algolia.com/api/v1/items/' + post.id, {
+      headers: { 'Accept': 'application/json', 'User-Agent': REDDIT_UA }
+    });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const children = (data && data.children) || [];
+    const comments = [];
+    for (const c of children) {
+      // Strip HTML tags from HN comment text
+      const body = (c.text || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#x2F;/g, '/').replace(/\s+/g, ' ').trim();
+      if (!body || body.length < 25) continue;
+      comments.push({ author: c.author || '', score: c.points || 0, body: body.slice(0, 400) });
+    }
+    comments.sort((a, b) => b.score - a.score);
+    return comments.slice(0, limit || 5);
+  } catch (e) { return []; }
+}
+
 // Top comments on a single post
 async function fetchTopCommentsForPost(post, limit) {
   if (!post.permalink) return [];
@@ -361,6 +441,8 @@ function buildThemePrompt(theme, posts) {
   const blocks = top.map((p, i) => {
     const sourceLabel = p.source === 'reddit'
       ? 'r/' + p.subreddit + ', score ' + p.score + ', ' + p.comments + ' comments'
+      : p.source === 'hackernews'
+      ? 'HackerNews, ' + p.score + ' points, ' + p.comments + ' comments'
       : 'Bluesky, ' + p.score + ' likes, ' + p.comments + ' replies';
     let block = 'POST ' + (i + 1) + ' (' + sourceLabel + ')\n' +
                 'Title: ' + (p.title || '').slice(0, 200);
@@ -377,7 +459,7 @@ function buildThemePrompt(theme, posts) {
   }).join('\n\n');
 
   return 'Theme: ' + theme.label + '\n\n' +
-         'Recent posts and the actual user commentary on them (Reddit, last 30 days):\n\n' +
+         'Recent posts and the actual user commentary on them (Reddit/HackerNews, last 90 days):\n\n' +
          blocks + '\n\n' +
          'Return strict JSON in exactly this shape — no other text:\n' +
          '{\n' +
@@ -562,19 +644,31 @@ async function generatePulse() {
 
   for (const theme of PULSE_THEMES) {
     try {
-      // 1. Reddit posts (subreddit-restricted, single combined OR search)
+      // 1. Reddit posts (subreddit-restricted, top-posts browsing)
       const redditPosts = await fetchRedditPostsForTheme(theme);
 
-      // 2. Top 8 by combined engagement
-      const allPosts = redditPosts
+      // 1b. HackerNews fallback — fires when Reddit is IP-blocked (returns 0 posts).
+      //     HN Algolia is credential-free and not blocked from Render's datacenter IPs.
+      //     When REDDIT_CLIENT_ID/SECRET are added to Render later, Reddit becomes primary again.
+      let hnPosts = [];
+      if (redditPosts.length === 0) {
+        console.log(' [PULSE] Reddit returned 0 posts for ' + theme.label + ' — falling back to HackerNews');
+        hnPosts = await fetchHackerNewsPostsForTheme(theme);
+      }
+
+      // 2. Top 8 by combined engagement (Reddit preferred over HN when both present)
+      const allPosts = [...redditPosts, ...hnPosts]
         .sort((a, b) => (b.score + b.comments) - (a.score + a.comments));
       const top8 = allPosts.slice(0, 8);
 
-      // 3. Fetch top comments for each
+      // 3. Fetch top comments for each — Reddit and HN use different comment APIs
       for (const p of top8) {
-        if (p.permalink) {
+        if (p.source === 'reddit' && p.permalink) {
           p.topComments = await fetchTopCommentsForPost(p, 5);
           await delay(REDDIT_DELAY_MS);
+        } else if (p.source === 'hackernews') {
+          p.topComments = await fetchHNCommentsForPost(p, 5);
+          await delay(500);
         }
       }
 
@@ -615,6 +709,7 @@ async function generatePulse() {
         color: theme.color,
         postCount: allPosts.length,
         redditCount: redditPosts.length,
+        hnCount: hnPosts.length,
         blueskyCount: 0,
         commentsAnalyzed: top8.reduce((acc, p) => acc + ((p.topComments || []).length), 0),
         sentiment: ai.sentiment,
