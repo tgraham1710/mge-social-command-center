@@ -15,10 +15,10 @@
  *   INSTAGRAM_TOKEN         — same token works; can be same as FACEBOOK_PAGE_TOKEN
  *   INSTAGRAM_USER_ID       — already set
  *   GITHUB_PAT              — fine-grained or classic PAT with `Contents: Read & Write` scope
- *                             on taylormcgraham-bit/mge-social-command-center
+ *                             on tgraham1710/mge-social-command-center
  *                             If absent, archive still saves locally; GitHub commit is skipped.
  *   GITHUB_ARCHIVE_BRANCH   — defaults to 'data-archive'
- *   GITHUB_REPO             — defaults to 'taylormcgraham-bit/mge-social-command-center'
+ *   GITHUB_REPO             — defaults to 'tgraham1710/mge-social-command-center'
  */
 
 const fs = require('fs');
@@ -28,7 +28,7 @@ const META_BASE = 'https://graph.facebook.com/v22.0';
 const ARCHIVE_DIR = path.join(__dirname, 'data');
 const ARCHIVE_FILE = path.join(ARCHIVE_DIR, 'stories-archive.json');
 const ARCHIVE_BRANCH = process.env.GITHUB_ARCHIVE_BRANCH || 'data-archive';
-const ARCHIVE_REPO = process.env.GITHUB_REPO || 'taylormcgraham-bit/mge-social-command-center';
+const ARCHIVE_REPO = process.env.GITHUB_REPO || 'tgraham1710/mge-social-command-center';
 const ARCHIVE_PATH_IN_REPO = 'data/stories-archive.json';
 
 // 12 hours
