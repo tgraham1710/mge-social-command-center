@@ -1116,7 +1116,7 @@ async function pollReddit() {
     try {
       const resp = await fetch(q.url, {
         headers: {
-          'User-Agent': 'MGE-Social-Command-Center/1.0 (by u/taylormcgraham; Madison Gas and Electric brand monitoring)',
+          'User-Agent': 'MGE-Social-Command-Center/1.0 (by u/MGEsocial; Madison Gas and Electric brand monitoring)',
           'Accept': 'application/json'
         }
       });
@@ -1696,7 +1696,7 @@ function secFilingUrl(cik, accessionNumber, primaryDocument) {
 
 // SEC requires a descriptive User-Agent with contact info per their fair-use policy
 // (https://www.sec.gov/developer). Generic UAs get blocked.
-const SEC_USER_AGENT = 'MGE Social Command Center taylormcgraham@gmail.com';
+const SEC_USER_AGENT = 'MGE Social Command Center tgraham@mge.com';
 
 async function pollSECFilings() {
   const found = [];
