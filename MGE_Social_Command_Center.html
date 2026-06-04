@@ -8377,14 +8377,20 @@ async function renderInsightsPanel(data, previousData, force) {
 
     function _reviewsRenderSummary(reviews) {
         var total = reviews.length;
-        var sum = reviews.reduce(function(a, r) { return a + (r.starRating || 0); }, 0);
-        var avg = total ? (sum / total) : 0;
+        // Summary score based on Google reviews only (Facebook uses thumbs, not stars)
+        var googleReviews = reviews.filter(function(r) { return r.source !== 'facebook'; });
+        var fbReviews = reviews.filter(function(r) { return r.source === 'facebook'; });
+        var fbPos = fbReviews.filter(function(r) { return r.recommendationType === 'positive'; }).length;
+        var fbNeg = fbReviews.filter(function(r) { return r.recommendationType === 'negative'; }).length;
+        var scoreBase = googleReviews.length ? googleReviews : reviews;
+        var sum = scoreBase.reduce(function(a, r) { return a + (r.starRating || 0); }, 0);
+        var avg = scoreBase.length ? (sum / scoreBase.length) : 0;
         var avgEl = document.getElementById('reviewsAvgScore');
         var starsEl = document.getElementById('reviewsAvgStars');
         var countEl = document.getElementById('reviewsTotalCount');
-        if (avgEl) avgEl.textContent = avg.toFixed(1);
-        if (starsEl) starsEl.textContent = _reviewsStarsDisplay(avg);
-        if (countEl) countEl.textContent = total;
+        if (avgEl) avgEl.textContent = googleReviews.length ? avg.toFixed(1) : '--';
+        if (starsEl) starsEl.textContent = googleReviews.length ? _reviewsStarsDisplay(avg) : '';
+        if (countEl) countEl.textContent = total + (fbReviews.length ? ' (' + fbPos + ' 👍 · ' + fbNeg + ' 👎 FB)' : '');
         var breakdown = document.getElementById('reviewsBreakdown');
         if (!breakdown) return;
         var counts = {5:0, 4:0, 3:0, 2:0, 1:0};
@@ -8415,6 +8421,7 @@ async function renderInsightsPanel(data, previousData, force) {
             var date = r.createTime ? new Date(r.createTime).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
             var bodyHtml = r.comment ? _reviewsEscapeHtml(r.comment) : '<em style="color:#94a3b8;">No written review</em>';
             var isFacebook = r.source === 'facebook';
+            var isPositive = r.recommendationType === 'positive';
             var replyHtml = isFacebook ? ''
                 : (r.reviewReply && r.reviewReply.comment)
                     ? '<div class="review-reply-section"><div class="review-reply-label">MGE Response' +
@@ -8426,6 +8433,19 @@ async function renderInsightsPanel(data, previousData, force) {
                 ? '<span class="review-source-badge facebook">📘 Facebook</span>'
                 : '<span class="review-source-badge google">G Google</span>';
             var avatarStyle = isFacebook ? 'background:linear-gradient(135deg,#1877F2,#42A5F5);' : '';
+            // Facebook uses recommendations (👍/👎), not stars
+            var ratingDisplay = isFacebook
+                ? (r.recommendationType === 'positive'
+                    ? '<span style="font-size:18px;" title="Recommends MGE">👍</span><span style="font-size:13px;color:#15803D;font-weight:600;margin-left:4px;">Recommends</span>'
+                    : r.recommendationType === 'negative'
+                    ? '<span style="font-size:18px;" title="Does not recommend MGE">👎</span><span style="font-size:13px;color:#DC2626;font-weight:600;margin-left:4px;">Doesn\'t Recommend</span>'
+                    : '')
+                : '<div class="review-stars-display' + (isLow ? ' low' : '') + '">' + stars + '</div>';
+            var bodyHtml = r.comment
+                ? _reviewsEscapeHtml(r.comment)
+                : (isFacebook
+                    ? '<em style="color:#94a3b8;">No written review — recommendation only</em>'
+                    : '<em style="color:#94a3b8;">No written review</em>');
             return '<div class="review-card' + needsReplyClass + '">' +
                 '<div class="review-card-header">' +
                   '<div class="review-author">' +
@@ -8434,7 +8454,7 @@ async function renderInsightsPanel(data, previousData, force) {
                     '<div class="review-date">' + date + '</div></div>' +
                   '</div>' +
                   '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">' +
-                    '<div class="review-stars-display' + (isLow ? ' low' : '') + '">' + stars + '</div>' +
+                    '<div style="display:flex;align-items:center;">' + ratingDisplay + '</div>' +
                     sourceBadge +
                   '</div>' +
                 '</div>' +
