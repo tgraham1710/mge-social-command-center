@@ -2730,6 +2730,19 @@ let _fbReviewsCache     = null;
 let _fbReviewsCacheTime = 0;
 const FB_REVIEWS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
+// Detect obvious spam reviews (crypto/forex scams, phishing, investment pitches)
+function _fbIsSpam(comment) {
+  if (!comment) return false;
+  const t = comment.toLowerCase();
+  if (/\bforex\b|\bbitcoin\b|\bcrypto\b/.test(t)) return true;
+  if (/whatsapp\s*[:\-]\s*\+?\d/.test(t)) return true;
+  if (/e[-\s]?mail\s*[:\-]\s*\S+@\S+/.test(t)) return true;
+  if (/invest\w*\s+\$\d+/.test(t) || /\$\d[\d,]+.*\bprofit\b/.test(t)) return true;
+  if (/page.{0,40}scheduled.{0,40}deletion/.test(t)) return true;
+  if (/\btrader\b.*\bwithdraw|\bwithdraw\b.*\bprofit\b/.test(t)) return true;
+  return false;
+}
+
 app.get('/api/fb-reviews', async (req, res) => {
   const cfg = config.facebook;
   if (!cfg || !cfg.enabled || !cfg.pageAccessToken || !cfg.pageId) {
@@ -2742,7 +2755,7 @@ app.get('/api/fb-reviews', async (req, res) => {
   }
 
   try {
-    const reviews = [];
+    const rawReviews = [];
     const fields = 'created_time,has_rating,has_review,rating,recommendation_type,review_text,reviewer';
     let url = `https://graph.facebook.com/v19.0/${cfg.pageId}/ratings?fields=${fields}&limit=100&access_token=${cfg.pageAccessToken}`;
 
@@ -2754,7 +2767,7 @@ app.get('/api/fb-reviews', async (req, res) => {
       if (data.error) throw new Error(`FB Ratings API error: ${data.error.message}`);
       (data.data || []).forEach(r => {
         if (!r.has_rating && !r.has_review) return;
-        reviews.push({
+        rawReviews.push({
           createTime: r.created_time,
           starRating: r.has_rating ? (r.rating || 0)
                     : r.recommendation_type === 'positive' ? 5
@@ -2768,10 +2781,15 @@ app.get('/api/fb-reviews', async (req, res) => {
       url = data.paging?.next || null;
     }
 
+    // Filter out obvious spam (crypto/forex scams, phishing messages)
+    const reviews = rawReviews.filter(r => !_fbIsSpam(r.comment));
+    const spamCount = rawReviews.length - reviews.length;
+    if (spamCount > 0) console.log(`[FB Reviews] Filtered ${spamCount} spam review(s)`);
+
     const result = { reviews, totalReviews: reviews.length, fetchedAt: new Date().toISOString() };
     _fbReviewsCache     = result;
     _fbReviewsCacheTime = Date.now();
-    console.log(`[FB Reviews] Fetched ${reviews.length} Facebook ratings for page ${cfg.pageId}`);
+    console.log(`[FB Reviews] Returning ${reviews.length} reviews for page ${cfg.pageId}`);
     res.json(result);
   } catch (err) {
     console.error('[FB Reviews] Error:', err.message);
