@@ -46,7 +46,9 @@ function loadConfig() {
       clientSecret: process.env.GBP_CLIENT_SECRET || fileConfig?.googleReviews?.clientSecret || '',
       refreshToken: process.env.GBP_REFRESH_TOKEN || fileConfig?.googleReviews?.refreshToken || '',
       // GBP account name format: "accounts/XXXXXXXXXX"
-      accountName:  process.env.GBP_ACCOUNT_NAME  || fileConfig?.googleReviews?.accountName  || ''
+      accountName:  process.env.GBP_ACCOUNT_NAME  || fileConfig?.googleReviews?.accountName  || '',
+      // GBP location name format: "locations/XXXXXXXXXX" (auto-discovered from account if omitted)
+      locationName: process.env.GBP_LOCATION_NAME || fileConfig?.googleReviews?.locationName || ''
     },
     server: {
       port: parseInt(process.env.PORT || fileConfig?.server?.port || '3000', 10),
@@ -756,6 +758,109 @@ app.get('/api/all-data', async (req, res) => {
   res.json(result);
 });
 
+
+// ============================================================
+// GOOGLE BUSINESS PROFILE REVIEWS
+// OAuth 2.0 refresh-token flow → mybusinessreviews.googleapis.com
+// Required env vars: GBP_CLIENT_ID, GBP_CLIENT_SECRET,
+//                    GBP_REFRESH_TOKEN, GBP_ACCOUNT_NAME
+// Optional:          GBP_LOCATION_NAME (auto-discovered if omitted)
+// ============================================================
+
+let _gbpAccessToken = null;
+let _gbpTokenExpiry  = 0;
+let _gbpLocationName = null; // cached after first discovery
+let _gbpReviewsCache     = null;
+let _gbpReviewsCacheTime = 0;
+const GBP_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+const GBP_STAR_MAP = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
+
+async function _gbpGetAccessToken() {
+  if (_gbpAccessToken && Date.now() < _gbpTokenExpiry - 60000) return _gbpAccessToken;
+  const cfg = config.googleReviews;
+  if (!cfg.clientId || !cfg.clientSecret || !cfg.refreshToken) {
+    throw new Error('GBP OAuth credentials not configured');
+  }
+  const resp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id:     cfg.clientId,
+      client_secret: cfg.clientSecret,
+      refresh_token: cfg.refreshToken,
+      grant_type:    'refresh_token'
+    })
+  });
+  if (!resp.ok) throw new Error('GBP token refresh failed: ' + (await resp.text()));
+  const data = await resp.json();
+  _gbpAccessToken = data.access_token;
+  _gbpTokenExpiry = Date.now() + (data.expires_in * 1000);
+  return _gbpAccessToken;
+}
+
+async function _gbpGetLocationName(accessToken) {
+  if (_gbpLocationName) return _gbpLocationName;
+  const envLoc = config.googleReviews?.locationName;
+  if (envLoc) { _gbpLocationName = envLoc; return _gbpLocationName; }
+  const accountName = config.googleReviews?.accountName;
+  if (!accountName) throw new Error('GBP_ACCOUNT_NAME not configured');
+  const resp = await fetch(
+    `https://mybusinessinformation.googleapis.com/v1/${accountName}/locations?readMask=name`,
+    { headers: { Authorization: 'Bearer ' + accessToken } }
+  );
+  if (!resp.ok) throw new Error('Failed to list GBP locations: HTTP ' + resp.status);
+  const data = await resp.json();
+  const locs = data.locations || [];
+  if (!locs.length) throw new Error('No GBP locations found under ' + accountName);
+  _gbpLocationName = locs[0].name; // e.g. "locations/123456789"
+  console.log('[GBP] Auto-discovered location:', _gbpLocationName);
+  return _gbpLocationName;
+}
+
+app.get('/api/reviews', async (req, res) => {
+  // Not yet configured — return pending so the frontend shows the waiting state
+  if (!config.googleReviews?.enabled) {
+    return res.json({ pending: true });
+  }
+  try {
+    // Serve cached data if still fresh
+    if (_gbpReviewsCache && (Date.now() - _gbpReviewsCacheTime) < GBP_CACHE_TTL) {
+      return res.json(_gbpReviewsCache);
+    }
+    const token    = await _gbpGetAccessToken();
+    const location = await _gbpGetLocationName(token);
+
+    // Paginate up to 3 pages (max 150 reviews)
+    let allReviews = [];
+    let pageToken  = null;
+    let page       = 0;
+    do {
+      const url = new URL(`https://mybusinessreviews.googleapis.com/v1/${location}/reviews`);
+      url.searchParams.set('pageSize', '50');
+      if (pageToken) url.searchParams.set('pageToken', pageToken);
+      const r = await fetch(url.toString(), { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) throw new Error('GBP Reviews API ' + r.status + ': ' + (await r.text()));
+      const d = await r.json();
+      // Normalize starRating from string ("FIVE") to integer (5)
+      (d.reviews || []).forEach(review => {
+        review.starRating = GBP_STAR_MAP[review.starRating] || 0;
+      });
+      allReviews = allReviews.concat(d.reviews || []);
+      pageToken  = d.nextPageToken || null;
+      page++;
+    } while (pageToken && page < 3);
+
+    const result = { locationName: location, reviews: allReviews };
+    _gbpReviewsCache     = result;
+    _gbpReviewsCacheTime = Date.now();
+    console.log(`[GBP] Fetched ${allReviews.length} reviews for ${location}`);
+    res.json(result);
+  } catch (err) {
+    console.error('[GBP Reviews]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ============================================================
 // MEDIA MONITORING & MENTIONS
