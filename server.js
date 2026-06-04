@@ -368,54 +368,67 @@ app.get('/api/facebook/comments/:postId', async (req, res) => {
   const { pageAccessToken } = config.facebook || {};
   if (!pageAccessToken) return res.json({ error: true, message: 'Facebook not configured' });
   // Include nested comments{} so threaded replies come back in one round-trip
-  const data = await apiFetch(`${META_BASE}/${req.params.postId}/comments?fields=id,message,created_time,from,like_count,comment_count,comments.limit(50){id,message,created_time,from,like_count,parent}&limit=50&order=reverse_chronological&access_token=${pageAccessToken}`);
+  // 'from' omitted — see all-comments endpoint note above
+  const data = await apiFetch(`${META_BASE}/${req.params.postId}/comments?fields=id,message,created_time,like_count,comment_count,comments.limit(50){id,message,created_time,like_count,parent}&limit=50&order=reverse_chronological&access_token=${pageAccessToken}`);
   res.json(data);
 });
 
 app.get('/api/facebook/all-comments', async (req, res) => {
   const { pageAccessToken, pageId } = config.facebook || {};
   if (!pageAccessToken || !pageId) return res.json({ error: true, message: 'Facebook not configured' });
-  // Field expansion: top-level comments{} now includes nested comments{} for replies
-  let url = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,full_picture,comments.limit(50){id,message,created_time,from,like_count,comments.limit(50){id,message,created_time,from,like_count}}&limit=50&access_token=${pageAccessToken}`;
+  // NOTE: 'from' field intentionally omitted from comments — Graph API v13+ silently drops the
+  // entire comments edge when 'from' is included and the privacy restriction triggers, resulting
+  // in zero comments returned. Authors show as 'Facebook commenter' which the frontend handles.
+  let url = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,full_picture,permalink_url,comments.limit(100){id,message,created_time,like_count,comments.limit(50){id,message,created_time,like_count}}&limit=100&access_token=${pageAccessToken}`;
   url += dateRangeParams(req);
   const postsData = await apiFetch(url);
-  if (postsData.error) return res.json(postsData);
+  if (postsData.error) {
+    console.error('[FB Comments] Posts fetch error:', JSON.stringify(postsData).substring(0, 300));
+    return res.json(postsData);
+  }
   const allComments = [];
+  let postCount = 0;
+  let commentCount = 0;
   (postsData.data || []).forEach(post => {
+    postCount++;
     const comments = post.comments?.data || [];
     comments.forEach(c => {
+      commentCount++;
       allComments.push({
         platform: 'facebook',
         id: c.id,
-        author: c.from?.name || 'Facebook User',
+        author: 'Facebook commenter',
         text: c.message,
         publishedAt: c.created_time,
         likeCount: c.like_count || 0,
         postId: post.id,
         postMessage: post.message || '',
-        postImage: post.full_picture || ''
+        postImage: post.full_picture || '',
+        postUrl: post.permalink_url || ''
       });
-      // Threaded replies on this comment — flatten so they count just like top-level comments
+      // Threaded replies — flatten inline
       const replies = c.comments?.data || [];
       replies.forEach(r => {
+        commentCount++;
         allComments.push({
           platform: 'facebook',
           id: r.id,
-          author: r.from?.name || 'Facebook User',
+          author: 'Facebook commenter',
           text: r.message,
           publishedAt: r.created_time,
           likeCount: r.like_count || 0,
           postId: post.id,
           postMessage: post.message || '',
           postImage: post.full_picture || '',
+          postUrl: post.permalink_url || '',
           isReply: true,
           parentCommentId: c.id,
-          parentAuthor: c.from?.name || '',
           parentCommentText: c.message || ''
         });
       });
     });
   });
+  console.log(`[FB Comments] ${postCount} posts scanned, ${commentCount} comments found`);
   allComments.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
   res.json({ comments: allComments });
 });
@@ -2726,40 +2739,6 @@ app.get('/api/stories/refresh', async (req, res) => {
 // Facebook Page Ratings API
 // ============================================================
 
-// Temporary debug endpoint — returns raw FB API response with no filtering
-// so we can see exactly what Facebook sends (count, fields, pagination)
-app.get('/api/fb-reviews-raw', async (req, res) => {
-  const cfg = config.facebook;
-  if (!cfg || !cfg.enabled || !cfg.pageAccessToken || !cfg.pageId) {
-    return res.json({ error: 'Facebook not configured' });
-  }
-  try {
-    const fields = 'created_time,has_rating,has_review,rating,recommendation_type,review_text,reviewer';
-    const url = `https://graph.facebook.com/v19.0/${cfg.pageId}/ratings?fields=${fields}&limit=200&access_token=${cfg.pageAccessToken}`;
-    const resp = await fetch(url);
-    const data = await resp.json();
-    // Also fetch page-level rating_count for comparison
-    const pageUrl = `https://graph.facebook.com/v19.0/${cfg.pageId}?fields=rating_count,overall_star_rating&access_token=${cfg.pageAccessToken}`;
-    const pageResp = await fetch(pageUrl);
-    const pageData = await pageResp.json();
-    res.json({
-      page_level: pageData,
-      raw_count: (data.data || []).length,
-      has_next_page: !!(data.paging?.next),
-      breakdown: (data.data || []).map(r => ({
-        created_time: r.created_time,
-        has_rating: r.has_rating,
-        has_review: r.has_review,
-        rating: r.rating,
-        recommendation_type: r.recommendation_type,
-        has_text: !!(r.review_text)
-      })),
-      raw: data
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 let _fbReviewsCache     = null;
 let _fbReviewsCacheTime = 0;
@@ -2801,12 +2780,14 @@ app.get('/api/fb-reviews', async (req, res) => {
       const data = await resp.json();
       if (data.error) throw new Error(`FB Ratings API error: ${data.error.message}`);
       (data.data || []).forEach(r => {
-        if (!r.has_rating && !r.has_review) return;
+        // Include all entries — even text-free recommendations are valid customer signals
         rawReviews.push({
           createTime: r.created_time,
-          starRating: r.has_rating ? (r.rating || 0)
-                    : r.recommendation_type === 'positive' ? 5
+          // Facebook uses recommendations (positive/negative), not star ratings
+          // Map to 5/1 for sorting/filtering purposes
+          starRating: r.recommendation_type === 'positive' ? 5
                     : r.recommendation_type === 'negative' ? 1 : 0,
+          recommendationType: r.recommendation_type || null, // 'positive' | 'negative'
           reviewer: { displayName: r.reviewer?.name || 'Facebook User' },
           comment: r.review_text || '',
           reviewReply: null,
