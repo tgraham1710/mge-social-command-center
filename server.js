@@ -2726,6 +2726,41 @@ app.get('/api/stories/refresh', async (req, res) => {
 // Facebook Page Ratings API
 // ============================================================
 
+// Temporary debug endpoint — returns raw FB API response with no filtering
+// so we can see exactly what Facebook sends (count, fields, pagination)
+app.get('/api/fb-reviews-raw', async (req, res) => {
+  const cfg = config.facebook;
+  if (!cfg || !cfg.enabled || !cfg.pageAccessToken || !cfg.pageId) {
+    return res.json({ error: 'Facebook not configured' });
+  }
+  try {
+    const fields = 'created_time,has_rating,has_review,rating,recommendation_type,review_text,reviewer';
+    const url = `https://graph.facebook.com/v19.0/${cfg.pageId}/ratings?fields=${fields}&limit=200&access_token=${cfg.pageAccessToken}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    // Also fetch page-level rating_count for comparison
+    const pageUrl = `https://graph.facebook.com/v19.0/${cfg.pageId}?fields=rating_count,overall_star_rating&access_token=${cfg.pageAccessToken}`;
+    const pageResp = await fetch(pageUrl);
+    const pageData = await pageResp.json();
+    res.json({
+      page_level: pageData,
+      raw_count: (data.data || []).length,
+      has_next_page: !!(data.paging?.next),
+      breakdown: (data.data || []).map(r => ({
+        created_time: r.created_time,
+        has_rating: r.has_rating,
+        has_review: r.has_review,
+        rating: r.rating,
+        recommendation_type: r.recommendation_type,
+        has_text: !!(r.review_text)
+      })),
+      raw: data
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 let _fbReviewsCache     = null;
 let _fbReviewsCacheTime = 0;
 const FB_REVIEWS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
