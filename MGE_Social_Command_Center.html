@@ -3217,6 +3217,24 @@
             background: #FEF3C7; padding: 4px 10px; border-radius: 20px; margin-top: 8px;
         }
 
+        /* Review source badge */
+        .review-source-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+            padding: 2px 8px; border-radius: 10px; text-transform: uppercase;
+            flex-shrink: 0; align-self: flex-start; margin-top: 2px;
+        }
+        .review-source-badge.facebook { background: #EFF6FF; color: #1877F2; border: 1px solid #BFDBFE; }
+        .review-source-badge.google   { background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; }
+
+        /* GBP pending inline notice */
+        .reviews-gbp-pending-notice {
+            display: none; background: #FFFBEB; border: 1px solid #FDE68A;
+            border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;
+            font-size: 13px; color: #92400E; line-height: 1.5;
+        }
+        .reviews-gbp-pending-notice strong { color: #78350F; }
+
         /* Loading + empty states */
         .reviews-loading {
             display: flex; flex-direction: column; align-items: center;
@@ -3715,12 +3733,13 @@
         <div class="reviews-header">
             <div>
                 <div class="reviews-title">Company Reviews</div>
-                <div class="reviews-subtitle">Google Business Profile reviews for Madison Gas and Electric Company — most recent first. Monitor customer feedback and track overall sentiment.</div>
+                <div class="reviews-subtitle">Customer reviews from Facebook and Google Business Profile for Madison Gas and Electric Company — most recent first. Monitor feedback and track overall sentiment.</div>
             </div>
             <div class="reviews-meta">
                 <div>Last refreshed: <strong id="reviewsLastRefreshed">--</strong></div>
-                <div style="margin-top:8px;">
-                    <a class="reviews-gbp-link" href="https://business.google.com/reviews" target="_blank" rel="noopener">↗ View on Google</a>
+                <div style="margin-top:8px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+                    <a class="reviews-gbp-link" href="https://www.facebook.com/MadisonGasElectric/reviews" target="_blank" rel="noopener" style="background:#1877F2; border-color:#1877F2; color:#fff;">↗ Facebook Reviews</a>
+                    <a class="reviews-gbp-link" href="https://business.google.com/reviews" target="_blank" rel="noopener">↗ Google Reviews</a>
                 </div>
             </div>
         </div>
@@ -3738,12 +3757,16 @@
 
         <!-- Filter + sort bar (hidden until data loads) -->
         <div class="reviews-filter-bar" id="reviewsFilterBar" style="display:none;">
-            <button class="reviews-filter-chip active" data-filter="all" onclick="filterReviews('all', this)">All</button>
-            <button class="reviews-filter-chip" data-filter="5" onclick="filterReviews('5', this)">★ 5</button>
-            <button class="reviews-filter-chip" data-filter="4" onclick="filterReviews('4', this)">★ 4</button>
-            <button class="reviews-filter-chip" data-filter="3" onclick="filterReviews('3', this)">★ 3</button>
-            <button class="reviews-filter-chip" data-filter="2" onclick="filterReviews('2', this)">★ 2</button>
-            <button class="reviews-filter-chip" data-filter="1" onclick="filterReviews('1', this)">★ 1</button>
+            <button class="reviews-filter-chip reviews-source-chip active" onclick="filterReviewsSource('all', this)">All Sources</button>
+            <button class="reviews-filter-chip reviews-source-chip" onclick="filterReviewsSource('facebook', this)">📘 Facebook</button>
+            <button class="reviews-filter-chip reviews-source-chip" onclick="filterReviewsSource('google', this)">🔵 Google</button>
+            <div class="reviews-filter-sep"></div>
+            <button class="reviews-filter-chip reviews-rating-chip active" data-filter="all" onclick="filterReviews('all', this)">All</button>
+            <button class="reviews-filter-chip reviews-rating-chip" data-filter="5" onclick="filterReviews('5', this)">★ 5</button>
+            <button class="reviews-filter-chip reviews-rating-chip" data-filter="4" onclick="filterReviews('4', this)">★ 4</button>
+            <button class="reviews-filter-chip reviews-rating-chip" data-filter="3" onclick="filterReviews('3', this)">★ 3</button>
+            <button class="reviews-filter-chip reviews-rating-chip" data-filter="2" onclick="filterReviews('2', this)">★ 2</button>
+            <button class="reviews-filter-chip reviews-rating-chip" data-filter="1" onclick="filterReviews('1', this)">★ 1</button>
             <div class="reviews-filter-sep"></div>
             <span class="reviews-sort-label">Sort:</span>
             <select class="reviews-sort-select" id="reviewsSortSelect" onchange="sortAndRenderReviews()">
@@ -3751,6 +3774,11 @@
                 <option value="lowest">Lowest Rating First</option>
                 <option value="highest">Highest Rating First</option>
             </select>
+        </div>
+
+        <!-- Inline notice if GBP still pending but FB reviews loaded -->
+        <div class="reviews-gbp-pending-notice" id="reviewsGbpPendingNotice">
+            ⏳ <strong>Google reviews coming soon.</strong> GBP API access is pending Google's approval (Case ID 5-5301000040844, submitted May 28, 2026). Facebook reviews are shown in the meantime.
         </div>
 
         <!-- Cards grid -->
@@ -8335,7 +8363,7 @@ async function renderInsightsPanel(data, previousData, force) {
     };
 
     /* ============ Company Reviews ============ */
-    var _reviewsState = { data: null, filter: 'all' };
+    var _reviewsState = { data: null, filter: 'all', source: 'all' };
 
     function _reviewsStarsDisplay(n) {
         n = Math.max(0, Math.min(5, Math.round(n)));
@@ -8386,20 +8414,29 @@ async function renderInsightsPanel(data, previousData, force) {
             var isLow = rating > 0 && rating <= 3;
             var date = r.createTime ? new Date(r.createTime).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
             var bodyHtml = r.comment ? _reviewsEscapeHtml(r.comment) : '<em style="color:#94a3b8;">No written review</em>';
-            var replyHtml = (r.reviewReply && r.reviewReply.comment)
-                ? '<div class="review-reply-section"><div class="review-reply-label">MGE Response' +
-                  (r.reviewReply.updateTime ? ' &middot; ' + new Date(r.reviewReply.updateTime).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '') +
-                  '</div><div class="review-reply-text">' + _reviewsEscapeHtml(r.reviewReply.comment) + '</div></div>'
-                : '<div class="review-no-reply">⚠ Awaiting Response</div>';
-            var needsReplyClass = (!r.reviewReply) ? ' needs-reply' : '';
+            var isFacebook = r.source === 'facebook';
+            var replyHtml = isFacebook ? ''
+                : (r.reviewReply && r.reviewReply.comment)
+                    ? '<div class="review-reply-section"><div class="review-reply-label">MGE Response' +
+                      (r.reviewReply.updateTime ? ' &middot; ' + new Date(r.reviewReply.updateTime).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '') +
+                      '</div><div class="review-reply-text">' + _reviewsEscapeHtml(r.reviewReply.comment) + '</div></div>'
+                    : '<div class="review-no-reply">⚠ Awaiting Response</div>';
+            var needsReplyClass = (!isFacebook && !r.reviewReply) ? ' needs-reply' : '';
+            var sourceBadge = isFacebook
+                ? '<span class="review-source-badge facebook">📘 Facebook</span>'
+                : '<span class="review-source-badge google">G Google</span>';
+            var avatarStyle = isFacebook ? 'background:linear-gradient(135deg,#1877F2,#42A5F5);' : '';
             return '<div class="review-card' + needsReplyClass + '">' +
                 '<div class="review-card-header">' +
                   '<div class="review-author">' +
-                    '<div class="review-avatar">' + initials + '</div>' +
+                    '<div class="review-avatar" style="' + avatarStyle + '">' + initials + '</div>' +
                     '<div><div class="review-author-name">' + _reviewsEscapeHtml(name) + '</div>' +
                     '<div class="review-date">' + date + '</div></div>' +
                   '</div>' +
-                  '<div class="review-stars-display' + (isLow ? ' low' : '') + '">' + stars + '</div>' +
+                  '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">' +
+                    '<div class="review-stars-display' + (isLow ? ' low' : '') + '">' + stars + '</div>' +
+                    sourceBadge +
+                  '</div>' +
                 '</div>' +
                 '<div class="review-body">' + bodyHtml + '</div>' +
                 replyHtml +
@@ -8410,8 +8447,14 @@ async function renderInsightsPanel(data, previousData, force) {
     window.sortAndRenderReviews = function() {
         var reviews = (_reviewsState.data || []).slice();
         var filter = _reviewsState.filter || 'all';
+        var source = _reviewsState.source || 'all';
         var sortEl = document.getElementById('reviewsSortSelect');
         var sort = sortEl ? sortEl.value : 'newest';
+        // Filter by source
+        if (source !== 'all') {
+            reviews = reviews.filter(function(r) { return (r.source || 'google') === source; });
+        }
+        // Filter by star rating
         if (filter === 'no-reply') {
             reviews = reviews.filter(function(r) { return !r.reviewReply; });
         } else if (filter !== 'all') {
@@ -8419,6 +8462,8 @@ async function renderInsightsPanel(data, previousData, force) {
         }
         if (sort === 'lowest') {
             reviews.sort(function(a, b) { return (a.starRating||0) - (b.starRating||0); });
+        } else if (sort === 'highest') {
+            reviews.sort(function(a, b) { return (b.starRating||0) - (a.starRating||0); });
         } else if (sort === 'no-reply') {
             reviews.sort(function(a, b) { return (a.reviewReply ? 1 : 0) - (b.reviewReply ? 1 : 0); });
         } else {
@@ -8429,7 +8474,14 @@ async function renderInsightsPanel(data, previousData, force) {
 
     window.filterReviews = function(filter, el) {
         _reviewsState.filter = filter;
-        document.querySelectorAll('.reviews-filter-chip').forEach(function(c) { c.classList.remove('active'); });
+        document.querySelectorAll('.reviews-rating-chip').forEach(function(c) { c.classList.remove('active'); });
+        if (el) el.classList.add('active');
+        sortAndRenderReviews();
+    };
+
+    window.filterReviewsSource = function(source, el) {
+        _reviewsState.source = source;
+        document.querySelectorAll('.reviews-source-chip').forEach(function(c) { c.classList.remove('active'); });
         if (el) el.classList.add('active');
         sortAndRenderReviews();
     };
@@ -8438,51 +8490,58 @@ async function renderInsightsPanel(data, previousData, force) {
         var grid = document.getElementById('reviewsGrid');
         var summary = document.getElementById('reviewsSummary');
         var filterBar = document.getElementById('reviewsFilterBar');
+        var gbpNotice = document.getElementById('reviewsGbpPendingNotice');
         if (!grid) return;
         if (_reviewsState.data) { sortAndRenderReviews(); return; }
         grid.innerHTML = '<div class="reviews-loading"><div class="reviews-loading-spinner"></div><div class="reviews-loading-text">Loading reviews…</div></div>';
-        fetch('/api/reviews')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data && data.pending) {
-                    grid.innerHTML = '<div class="reviews-api-pending">' +
-                        '<div class="reviews-api-pending-icon">⏳</div>' +
-                        '<div class="reviews-api-pending-title">Pending per Google\'s Approval</div>' +
-                        '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
-                        '</div>';
-                    return;
-                }
-                if (data && data.error) {
-                    grid.innerHTML = '<div class="reviews-api-pending">' +
-                        '<div class="reviews-api-pending-icon">⏳</div>' +
-                        '<div class="reviews-api-pending-title">Pending per Google\'s Approval</div>' +
-                        '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
-                        '</div>';
-                    return;
-                }
-                if (!data || !data.reviews || !data.reviews.length) {
-                    grid.innerHTML = '<div class="reviews-api-pending">' +
-                        '<div class="reviews-api-pending-icon">⏳</div>' +
-                        '<div class="reviews-api-pending-title">Pending per Google\'s Approval</div>' +
-                        '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
-                        '</div>';
-                    return;
-                }
-                _reviewsState.data = data.reviews;
-                _reviewsRenderSummary(data.reviews);
-                if (summary) { summary.style.display = 'flex'; }
-                if (filterBar) { filterBar.style.display = 'flex'; }
-                var refreshEl = document.getElementById('reviewsLastRefreshed');
-                if (refreshEl) refreshEl.textContent = new Date().toLocaleString();
-                sortAndRenderReviews();
-            })
-            .catch(function() {
+
+        Promise.allSettled([
+            fetch('/api/reviews').then(function(r) { return r.json(); }),
+            fetch('/api/fb-reviews').then(function(r) { return r.json(); })
+        ]).then(function(results) {
+            var allReviews = [];
+            var gbpPending = false;
+
+            // GBP result
+            var gbpResult = results[0];
+            if (gbpResult.status === 'fulfilled' && gbpResult.value && !gbpResult.value.pending && !gbpResult.value.error && gbpResult.value.reviews && gbpResult.value.reviews.length) {
+                gbpResult.value.reviews.forEach(function(r) { r.source = r.source || 'google'; });
+                allReviews = allReviews.concat(gbpResult.value.reviews);
+            } else {
+                gbpPending = true;
+            }
+
+            // Facebook result
+            var fbResult = results[1];
+            if (fbResult.status === 'fulfilled' && fbResult.value && fbResult.value.reviews && fbResult.value.reviews.length) {
+                allReviews = allReviews.concat(fbResult.value.reviews);
+            }
+
+            // No reviews from either source
+            if (!allReviews.length) {
                 grid.innerHTML = '<div class="reviews-api-pending">' +
                     '<div class="reviews-api-pending-icon">⏳</div>' +
                     '<div class="reviews-api-pending-title">Pending per Google\'s Approval</div>' +
                     '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
                     '</div>';
-            });
+                return;
+            }
+
+            _reviewsState.data = allReviews;
+            _reviewsRenderSummary(allReviews);
+            if (summary) { summary.style.display = 'flex'; }
+            if (filterBar) { filterBar.style.display = 'flex'; }
+            if (gbpPending && gbpNotice) { gbpNotice.style.display = 'block'; }
+            var refreshEl = document.getElementById('reviewsLastRefreshed');
+            if (refreshEl) refreshEl.textContent = new Date().toLocaleString();
+            sortAndRenderReviews();
+        }).catch(function() {
+            grid.innerHTML = '<div class="reviews-api-pending">' +
+                '<div class="reviews-api-pending-icon">⏳</div>' +
+                '<div class="reviews-api-pending-title">Pending per Google\'s Approval</div>' +
+                '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
+                '</div>';
+        });
     };
 
     window.filterMentionsSource = function(source, el) {
