@@ -2806,6 +2806,63 @@ app.get('/api/reviews', async (req, res) => {
 });
 
 // ============================================================
+// Facebook Page Ratings API
+// ============================================================
+
+let _fbReviewsCache     = null;
+let _fbReviewsCacheTime = 0;
+const FB_REVIEWS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+app.get('/api/fb-reviews', async (req, res) => {
+  const cfg = config.facebook;
+  if (!cfg || !cfg.enabled || !cfg.pageAccessToken || !cfg.pageId) {
+    return res.json({ error: 'Facebook not configured', reviews: [] });
+  }
+
+  // Serve from cache if fresh
+  if (_fbReviewsCache && (Date.now() - _fbReviewsCacheTime) < FB_REVIEWS_CACHE_TTL) {
+    return res.json(_fbReviewsCache);
+  }
+
+  try {
+    const reviews = [];
+    const fields = 'created_time,has_rating,has_review,rating,recommendation_type,review_text,reviewer';
+    let url = `https://graph.facebook.com/v19.0/${cfg.pageId}/ratings?fields=${fields}&limit=100&access_token=${cfg.pageAccessToken}`;
+
+    // Paginate up to 3 pages (max 300 reviews)
+    for (let page = 0; page < 3 && url; page++) {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`FB Ratings API ${resp.status}: ${await resp.text()}`);
+      const data = await resp.json();
+      if (data.error) throw new Error(`FB Ratings API error: ${data.error.message}`);
+      (data.data || []).forEach(r => {
+        if (!r.has_rating && !r.has_review) return;
+        reviews.push({
+          createTime: r.created_time,
+          starRating: r.has_rating ? (r.rating || 0)
+                    : r.recommendation_type === 'positive' ? 5
+                    : r.recommendation_type === 'negative' ? 1 : 0,
+          reviewer: { displayName: r.reviewer?.name || 'Facebook User' },
+          comment: r.review_text || '',
+          reviewReply: null,
+          source: 'facebook'
+        });
+      });
+      url = data.paging?.next || null;
+    }
+
+    const result = { reviews, totalReviews: reviews.length, fetchedAt: new Date().toISOString() };
+    _fbReviewsCache     = result;
+    _fbReviewsCacheTime = Date.now();
+    console.log(`[FB Reviews] Fetched ${reviews.length} Facebook ratings for page ${cfg.pageId}`);
+    res.json(result);
+  } catch (err) {
+    console.error('[FB Reviews] Error:', err.message);
+    res.status(500).json({ error: err.message, reviews: [] });
+  }
+});
+
+// ============================================================
 
 const PORT = config.server.port;
 app.listen(PORT, () => {
