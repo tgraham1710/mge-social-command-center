@@ -4646,8 +4646,8 @@ function processData(raw, dateRangeOverride) {
         return tb - ta;
     });
 
-    // Keep most recent 300 (bumped from 100 on 2026-05-12 — bigger capture net for AHS + Live Feed)
-    result.comments = result.comments.slice(0, 300);
+    // Keep most recent 500 (bumped from 300 on 2026-06-08 — Taylor requested 250+ capacity; extra headroom for AHS accuracy)
+    result.comments = result.comments.slice(0, 500);
 
     // Sort post engagement for chart (top 10)
     result.postEngagement.sort((a, b) => b.value - a.value);
