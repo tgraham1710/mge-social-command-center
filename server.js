@@ -35,7 +35,9 @@ function loadConfig() {
     linkedin: {
       enabled: process.env.LINKEDIN_TOKEN ? true : fileConfig?.linkedin?.enabled || false,
       accessToken: process.env.LINKEDIN_TOKEN || fileConfig?.linkedin?.accessToken || '',
-      organizationId: process.env.LINKEDIN_ORG_ID || fileConfig?.linkedin?.organizationId || ''
+      organizationId: process.env.LINKEDIN_ORG_ID || fileConfig?.linkedin?.organizationId || '',
+      clientId: process.env.LINKEDIN_CLIENT_ID || fileConfig?.linkedin?.clientId || '',
+      clientSecret: process.env.LINKEDIN_CLIENT_SECRET || fileConfig?.linkedin?.clientSecret || ''
     },
     googleReviews: {
       // Google Business Profile API (OAuth 2.0)
@@ -660,6 +662,65 @@ app.get('/api/instagram/reach', async (req, res) => {
 
 const LI_BASE = 'https://api.linkedin.com/v2';
 const LI_REST = 'https://api.linkedin.com/rest';
+
+// ============================================================
+// LINKEDIN OAUTH 2.0 HELPER
+// Admin visits /auth/linkedin → LinkedIn consent → /auth/linkedin/callback
+// Callback shows the access token so it can be stored in Render as LINKEDIN_TOKEN.
+// These routes are exempt from the dashboard password middleware (path starts with /auth/).
+// ============================================================
+const LI_REDIRECT_URI = process.env.LINKEDIN_REDIRECT_URI || 'https://mge-social-command-center.onrender.com/auth/linkedin/callback';
+const LI_OAUTH_SCOPES = 'r_organization_social r_organization_followers';
+
+app.get('/auth/linkedin', (req, res) => {
+  const { clientId } = config.linkedin || {};
+  if (!clientId) return res.status(500).send('LINKEDIN_CLIENT_ID env var not set on Render.');
+  const url = new URL('https://www.linkedin.com/oauth/v2/authorization');
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('redirect_uri', LI_REDIRECT_URI);
+  url.searchParams.set('scope', LI_OAUTH_SCOPES);
+  url.searchParams.set('state', Math.random().toString(36).slice(2, 12));
+  res.redirect(url.toString());
+});
+
+app.get('/auth/linkedin/callback', async (req, res) => {
+  const { code, error, error_description } = req.query;
+  if (error) return res.status(400).send(`LinkedIn OAuth error: ${error} — ${error_description}`);
+  if (!code) return res.status(400).send('No authorization code in callback.');
+  const { clientId, clientSecret } = config.linkedin || {};
+  if (!clientId || !clientSecret) return res.status(500).send('LINKEDIN_CLIENT_ID or LINKEDIN_CLIENT_SECRET not set on Render.');
+  try {
+    const tokenResp = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: LI_REDIRECT_URI, client_id: clientId, client_secret: clientSecret })
+    });
+    const td = await tokenResp.json();
+    if (td.error) return res.status(400).send(`Token exchange failed: ${td.error} — ${td.error_description}`);
+    const expiresDate = new Date(Date.now() + (td.expires_in || 5184000) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const days = Math.round((td.expires_in || 5184000) / 86400);
+    res.send(`<!DOCTYPE html><html><head><title>LinkedIn Token Ready</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a2744;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:40px 20px}.card{background:#112240;border-radius:12px;padding:32px;width:100%;max-width:760px;box-shadow:0 20px 60px rgba(0,0,0,0.4)}h1{color:#22C55E;font-size:22px;margin-bottom:20px}p{color:#94A3B8;font-size:14px;margin-bottom:8px}.label{color:#60A5FA;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:20px;margin-bottom:6px}.token{background:#0a0f1a;border:1px solid #1e3a5f;padding:14px 16px;border-radius:6px;word-break:break-all;font-family:monospace;font-size:13px;color:#86EFAC;line-height:1.6}.step{background:#1a3d6e;border-radius:8px;padding:16px;margin-top:20px;color:#CBD5E1;font-size:14px}a{color:#60A5FA}</style>
+</head><body><div class="card">
+<h1>✅ LinkedIn Token Generated</h1>
+<p>Copy the token below and paste it into Render as <strong style="color:#fff">LINKEDIN_TOKEN</strong>.</p>
+<div class="label">Access Token (copy all of it)</div>
+<div class="token">${td.access_token}</div>
+<p style="margin-top:10px;font-size:13px">Expires: ${expiresDate} (${days} days from now)</p>
+${td.refresh_token ? `<div class="label">Refresh Token (save as LINKEDIN_REFRESH_TOKEN — optional)</div><div class="token">${td.refresh_token}</div>` : ''}
+<div class="step">
+  <strong>Next steps:</strong><br>
+  1. Go to <a href="https://dashboard.render.com" target="_blank">Render dashboard</a> → your service → Environment<br>
+  2. Add/update <code>LINKEDIN_TOKEN</code> with the value above<br>
+  3. Click <strong>Save Changes</strong> → the service will redeploy automatically<br>
+  4. LinkedIn data will appear in the dashboard within ~60 seconds
+</div>
+</div></body></html>`);
+  } catch (err) {
+    res.status(500).send('Token exchange request failed: ' + err.message);
+  }
+});
 
 app.get('/api/linkedin/organization', async (req, res) => {
   const { accessToken, organizationId } = config.linkedin || {};
