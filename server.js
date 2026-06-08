@@ -438,7 +438,7 @@ app.get('/api/facebook/all-comments', async (req, res) => {
 
   // order=reverse_chronological IS valid as a direct query param (NOT in nested field expansion)
   await Promise.all(postsToCheck.map(async (meta) => {
-    const url = `${META_BASE}/${meta.postId}/comments?fields=id,message,created_time,like_count,comments.limit(25){id,message,created_time,like_count}&order=reverse_chronological&limit=50&access_token=${pageAccessToken}`;
+    const url = `${META_BASE}/${meta.postId}/comments?fields=id,message,created_time,like_count,comments.limit(50){id,message,created_time,like_count}&order=reverse_chronological&limit=100&access_token=${pageAccessToken}`;
     const data = await apiFetch(url);
     if (data.error) return;
     (data.data || []).forEach(c => {
