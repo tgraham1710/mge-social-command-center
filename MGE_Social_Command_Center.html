@@ -4316,7 +4316,9 @@ function processData(raw, dateRangeOverride) {
     const fbPostsRaw = raw.facebook.posts?.data || (Array.isArray(raw.facebook.posts) ? raw.facebook.posts : []);
     const fbPostsArr = fbPostsRaw.filter(p => isInRange(p.created_time));
     const fbCommentsRaw = raw.facebook.comments?.comments || raw.facebook.comments?.data || (Array.isArray(raw.facebook.comments) ? raw.facebook.comments : []);
-    const fbCommentsArr = fbCommentsRaw.filter(c => isInRange(c.created_time || c.publishedAt));
+    // Live Comment Feed is NOT date-filtered — it shows the most recent comments regardless of
+    // the dashboard date range picker (which governs metrics/charts only, not the real-time feed).
+    const fbCommentsArr = fbCommentsRaw;
     if (fbPostsArr.length) {
         fbPostsArr.forEach(p => {
             result.platformEngagement.fb.postCount++;
@@ -4444,7 +4446,7 @@ function processData(raw, dateRangeOverride) {
     const igMediaRaw = raw.instagram.media?.data || (Array.isArray(raw.instagram.media) ? raw.instagram.media : []);
     const igMediaArr = igMediaRaw.filter(m => isInRange(m.timestamp));
     const igCommentsRaw = raw.instagram.comments?.comments || raw.instagram.comments?.data || (Array.isArray(raw.instagram.comments) ? raw.instagram.comments : []);
-    const igCommentsArr = igCommentsRaw.filter(c => isInRange(c.timestamp || c.publishedAt));
+    const igCommentsArr = igCommentsRaw; // not date-filtered — live feed shows recency, not date window
     if (igMediaArr.length) {
         igMediaArr.forEach(m => {
             result.platformEngagement.ig.postCount++;
@@ -4509,7 +4511,7 @@ function processData(raw, dateRangeOverride) {
     const liPostsRaw = raw.linkedin.posts?.elements || raw.linkedin.posts?.data || (Array.isArray(raw.linkedin.posts) ? raw.linkedin.posts : []);
     const liPostsArr = liPostsRaw.filter(p => isInRange(p.created || p.publishedAt || p.lastModified));
     const liCommentsRaw = raw.linkedin.comments?.comments || raw.linkedin.comments?.elements || (Array.isArray(raw.linkedin.comments) ? raw.linkedin.comments : []);
-    const liCommentsArr = liCommentsRaw.filter(c => isInRange(c.created || c.publishedAt));
+    const liCommentsArr = liCommentsRaw; // not date-filtered — live feed shows recency, not date window
     if (liPostsArr.length) {
         liPostsArr.forEach(p => {
             result.platformEngagement.li.postCount++;
@@ -4574,7 +4576,7 @@ function processData(raw, dateRangeOverride) {
     const ytVideosRaw = raw.youtube.videos?.items || (Array.isArray(raw.youtube.videos) ? raw.youtube.videos : []);
     const ytVideosArr = ytVideosRaw.filter(v => isInRange(v.snippet?.publishedAt));
     const ytCommentsRaw = raw.youtube.comments?.comments || raw.youtube.comments?.items || (Array.isArray(raw.youtube.comments) ? raw.youtube.comments : []);
-    const ytCommentsArr = ytCommentsRaw.filter(c => isInRange(c.publishedAt || c.snippet?.topLevelComment?.snippet?.publishedAt));
+    const ytCommentsArr = ytCommentsRaw; // not date-filtered — live feed shows recency, not date window
     if (ytVideosArr.length) {
         ytVideosArr.forEach(v => {
             const stats = v.statistics || {};
