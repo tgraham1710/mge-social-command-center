@@ -4649,6 +4649,16 @@ function processData(raw, dateRangeOverride) {
     // Keep most recent 500 (bumped from 300 on 2026-06-08 — Taylor requested 250+ capacity; extra headroom for AHS accuracy)
     result.comments = result.comments.slice(0, 500);
 
+    // Override kpis.comments with the actual fetched comment count.
+    // The per-post summary (comments.summary.total_count) only covers posts CREATED in the date
+    // window, so it misses comments on older posts that had recent activity (the updated_time
+    // sort surfaces these). platformComments is the authoritative count for everything downstream
+    // (AHS sentiment, the comment feed, the sentiment drawer) — the card face should match.
+    result.kpis.comments = (result.platformComments.fb.length || 0)
+                         + (result.platformComments.ig.length || 0)
+                         + (result.platformComments.li.length || 0)
+                         + (result.platformComments.yt.length || 0);
+
     // Sort post engagement for chart (top 10)
     result.postEngagement.sort((a, b) => b.value - a.value);
     result.postEngagement = result.postEngagement.slice(0, 10);
