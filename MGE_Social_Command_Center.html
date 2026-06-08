@@ -6207,7 +6207,10 @@ function ahsPillarAttention(views, postCount, platformKey) {
     var key = platformKey || 'total';
     return scoreVsBaseline(perPost, getBaseline(key, 'attentionPerPost'));
 }
-// Helper — compute weighted-engagement-per-post for a platform (the engagement pillar's input)
+// Helper — compute weighted-engagement-per-post for a platform (the engagement pillar's input).
+// Views are intentionally excluded here — they are already captured by the attention pillar.
+// Including views would double-count them and inflate engagement vs a benchmark that is
+// calibrated for reactions + comments + shares only.
 function _weightedEngagementPerPost(pe) {
     if (!pe || !pe.postCount) return 0;
     var comments  = (pe.comments || 0) * 5;
@@ -6216,8 +6219,7 @@ function _weightedEngagementPerPost(pe) {
     var reactions = (pe.like || pe.likes || 0) + (pe.love || 0) + (pe.care || 0)
                   + (pe.haha || 0) + (pe.wow || 0);
     var negatives = (pe.sad || 0) + (pe.angry || 0) + (pe.dislikes || 0);
-    var views     = (pe.views || 0) * 0.2;
-    return (comments + shares + saves + reactions - negatives + views) / pe.postCount;
+    return (comments + shares + saves + reactions - negatives) / pe.postCount;
 }
 // Called once per main render with current-period data — updates running baselines.
 // Tracks per-platform baselines AND a 'total' baseline (cumulative across MGE) used by the overall AHS.
