@@ -379,55 +379,65 @@ app.get('/api/facebook/all-comments', async (req, res) => {
   // NOTE: 'from' field intentionally omitted from comments — Graph API v13+ silently drops the
   // entire comments edge when 'from' is included and the privacy restriction triggers, resulting
   // in zero comments returned. Authors show as 'Facebook commenter' which the frontend handles.
-  let url = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,full_picture,permalink_url,comments.limit(100){id,message,created_time,like_count,comments.limit(50){id,message,created_time,like_count}}&limit=100&access_token=${pageAccessToken}`;
-  url += dateRangeParams(req);
-  const postsData = await apiFetch(url);
-  if (postsData.error) {
-    console.error('[FB Comments] Posts fetch error:', JSON.stringify(postsData).substring(0, 300));
-    return res.json(postsData);
-  }
+  //
+  // Pagination: fetch up to MAX_POST_PAGES pages of posts (100 each) so that comments on older
+  // posts still surface at the top of the feed when they receive new replies.
+  const MAX_POST_PAGES = 3; // 300 posts max — covers ~6–12 months of typical page activity
+  let nextUrl = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,full_picture,permalink_url,comments.limit(100){id,message,created_time,like_count,comments.limit(50){id,message,created_time,like_count}}&limit=100&access_token=${pageAccessToken}`;
+  nextUrl += dateRangeParams(req);
   const allComments = [];
   let postCount = 0;
   let commentCount = 0;
-  (postsData.data || []).forEach(post => {
-    postCount++;
-    const comments = post.comments?.data || [];
-    comments.forEach(c => {
-      commentCount++;
-      allComments.push({
-        platform: 'facebook',
-        id: c.id,
-        author: 'Facebook commenter',
-        text: c.message,
-        publishedAt: c.created_time,
-        likeCount: c.like_count || 0,
-        postId: post.id,
-        postMessage: post.message || '',
-        postImage: post.full_picture || '',
-        postUrl: post.permalink_url || ''
-      });
-      // Threaded replies — flatten inline
-      const replies = c.comments?.data || [];
-      replies.forEach(r => {
+  for (let page = 0; page < MAX_POST_PAGES && nextUrl; page++) {
+    const postsData = await apiFetch(nextUrl);
+    if (postsData.error) {
+      if (page === 0) {
+        console.error('[FB Comments] Posts fetch error:', JSON.stringify(postsData).substring(0, 300));
+        return res.json(postsData);
+      }
+      break; // Ignore errors on subsequent pages — return what we have
+    }
+    (postsData.data || []).forEach(post => {
+      postCount++;
+      const comments = post.comments?.data || [];
+      comments.forEach(c => {
         commentCount++;
         allComments.push({
           platform: 'facebook',
-          id: r.id,
+          id: c.id,
           author: 'Facebook commenter',
-          text: r.message,
-          publishedAt: r.created_time,
-          likeCount: r.like_count || 0,
+          text: c.message,
+          publishedAt: c.created_time,
+          likeCount: c.like_count || 0,
           postId: post.id,
           postMessage: post.message || '',
           postImage: post.full_picture || '',
-          postUrl: post.permalink_url || '',
-          isReply: true,
-          parentCommentId: c.id,
-          parentCommentText: c.message || ''
+          postUrl: post.permalink_url || ''
+        });
+        // Threaded replies — flatten inline
+        const replies = c.comments?.data || [];
+        replies.forEach(r => {
+          commentCount++;
+          allComments.push({
+            platform: 'facebook',
+            id: r.id,
+            author: 'Facebook commenter',
+            text: r.message,
+            publishedAt: r.created_time,
+            likeCount: r.like_count || 0,
+            postId: post.id,
+            postMessage: post.message || '',
+            postImage: post.full_picture || '',
+            postUrl: post.permalink_url || '',
+            isReply: true,
+            parentCommentId: c.id,
+            parentCommentText: c.message || ''
+          });
         });
       });
     });
-  });
+    nextUrl = postsData.paging?.next || null;
+  }
   console.log(`[FB Comments] ${postCount} posts scanned, ${commentCount} comments found`);
   allComments.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
   res.json({ comments: allComments });
