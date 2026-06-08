@@ -4930,7 +4930,13 @@ var KPI_META = {
     comments: {
         label: 'Total Comments',
         description: 'Comments left by your audience on each platform. Each comment is AI-scored for sentiment with full post + parent-comment context.',
-        platformValue: function(pe, k) { return pe[k] ? (pe[k].comments || 0) : 0; },
+        // Use platformComments[k].length (fetched comment items) rather than pe[k].comments
+        // (which sums post-level comment summary fields and only covers posts CREATED in the
+        // date window — misses comments on older posts surfaced by the updated_time sort).
+        platformValue: function(pe, k) {
+            var pc = window._lastProcessedData && window._lastProcessedData.platformComments;
+            return (pc && pc[k]) ? pc[k].length : 0;
+        },
         // Render Pos/Neu/Neg distribution + avg sentiment score above the per-platform list
         customHero: function(data) {
             if (!data || !data.comments || !data.comments.length) return '';
