@@ -378,31 +378,36 @@ app.get('/api/facebook/all-comments', async (req, res) => {
   if (!pageAccessToken || !pageId) return res.json({ error: true, message: 'Facebook not configured' });
   // IMPORTANT NOTES ON META GRAPH API GOTCHAS:
   // 1. 'from' field omitted — Graph API v13+ silently drops the entire comments edge if included.
-  // 2. '.order()' is NOT valid in nested field expansion — also causes silent failure. Ordering
-  //    must be a separate query param on a direct /{post-id}/comments call.
+  // 2. '.order()' is NOT valid in nested field expansion — also causes silent failure. Use only as
+  //    a direct query param on /{post-id}/comments calls.
+  // 3. Nested comment field expansion in the /posts query (comments.limit(100){...}) causes Meta's
+  //    complexity budget to kick in, silently reducing page size from 100 to ~21 posts.
   //
   // STRATEGY:
-  // Phase 1 — Fetch up to 500 posts (5 pages × 100) with nested comments. Also collect
-  //   comment counts via summary(true) to identify posts with >80 total comments.
-  // Phase 2 — For posts with >80 comments, the newest replies may be beyond position 100.
-  //   Make individual /{post-id}/comments?order=reverse_chronological calls (valid direct param)
-  //   in parallel (capped at 20 extra calls) to capture the most recent activity.
+  // Phase 1 — Fetch post metadata ONLY (no nested comments) so we get the full 100 posts/page.
+  //   Include updated_time: Facebook updates this field when new comments are posted, so old posts
+  //   with recent comments will have a recent updated_time and bubble up in Phase 2 sorting.
+  //   Paginate up to 10 pages × 100 = 1000 posts.
+  // Phase 2 — Sort all posts by updated_time desc (most recently active first — this surfaces old
+  //   posts that got new comments). Fetch reverse-chronological comments for the top 50 posts in
+  //   parallel. order=reverse_chronological is valid as a direct query param.
   // Final — Deduplicate by comment ID, sort all by publishedAt desc.
 
   const seenIds = new Set();
   const allComments = [];
-  const highTrafficPosts = []; // posts where total comments > 80 — need supplemental fetch
+  const allPosts = [];
   let postCount = 0;
 
   function pushComment(obj) {
     if (obj.id && !seenIds.has(obj.id)) { seenIds.add(obj.id); allComments.push(obj); }
   }
 
-  // ── Phase 1: paginate through posts ────────────────────────────────────────
-  let nextUrl = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,full_picture,permalink_url,comments.limit(100).summary(true){id,message,created_time,like_count,comments.limit(50){id,message,created_time,like_count}}&limit=100&access_token=${pageAccessToken}`;
-  nextUrl += dateRangeParams(req);
+  // ── Phase 1: paginate through posts (bare fields — no nested comments) ──────
+  // Bare fields prevent Meta's complexity budget from reducing page size.
+  // updated_time lets us find old posts that have new recent comments.
+  let nextUrl = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,updated_time,full_picture,permalink_url&limit=100&access_token=${pageAccessToken}`;
 
-  for (let page = 0; page < 5 && nextUrl; page++) {
+  for (let page = 0; page < 10 && nextUrl; page++) {
     const postsData = await apiFetch(nextUrl);
     if (postsData.error) {
       if (page === 0) {
@@ -413,39 +418,38 @@ app.get('/api/facebook/all-comments', async (req, res) => {
     }
     (postsData.data || []).forEach(post => {
       postCount++;
-      const totalComments = post.comments?.summary?.total_count || 0;
-      const meta = { postId: post.id, postMessage: post.message || '', postImage: post.full_picture || '', postUrl: post.permalink_url || '' };
-
-      if (totalComments > 80) highTrafficPosts.push(meta);
-
-      (post.comments?.data || []).forEach(c => {
-        pushComment({ platform: 'facebook', id: c.id, author: 'Facebook commenter', text: c.message, publishedAt: c.created_time, likeCount: c.like_count || 0, ...meta });
-        (c.comments?.data || []).forEach(r => {
-          pushComment({ platform: 'facebook', id: r.id, author: 'Facebook commenter', text: r.message, publishedAt: r.created_time, likeCount: r.like_count || 0, ...meta, isReply: true, parentCommentId: c.id, parentCommentText: c.message || '' });
-        });
+      allPosts.push({
+        postId: post.id,
+        postMessage: post.message || '',
+        postImage: post.full_picture || '',
+        postUrl: post.permalink_url || '',
+        createdTime: post.created_time,
+        updatedTime: post.updated_time || post.created_time
       });
     });
     nextUrl = postsData.paging?.next || null;
   }
 
-  // ── Phase 2: supplemental reverse-chronological fetch for high-traffic posts ─
-  // order=reverse_chronological IS valid as a direct query param (just not in field expansion)
-  if (highTrafficPosts.length > 0) {
-    const cap = highTrafficPosts.slice(0, 20);
-    await Promise.all(cap.map(async (meta) => {
-      const url = `${META_BASE}/${meta.postId}/comments?fields=id,message,created_time,like_count,comments.limit(25){id,message,created_time,like_count}&order=reverse_chronological&limit=50&access_token=${pageAccessToken}`;
-      const data = await apiFetch(url);
-      if (data.error) return;
-      (data.data || []).forEach(c => {
-        pushComment({ platform: 'facebook', id: c.id, author: 'Facebook commenter', text: c.message, publishedAt: c.created_time, likeCount: c.like_count || 0, ...meta });
-        (c.comments?.data || []).forEach(r => {
-          pushComment({ platform: 'facebook', id: r.id, author: 'Facebook commenter', text: r.message, publishedAt: r.created_time, likeCount: r.like_count || 0, ...meta, isReply: true, parentCommentId: c.id, parentCommentText: c.message || '' });
-        });
-      });
-    }));
-  }
+  // ── Phase 2: fetch reverse-chronological comments for top 50 most-active posts ─
+  // Sort by updated_time desc: old posts with new comments will have a recent updatedTime
+  // and float to the top, solving the "recent reply on an old post" problem.
+  allPosts.sort((a, b) => new Date(b.updatedTime) - new Date(a.updatedTime));
+  const postsToCheck = allPosts.slice(0, 50);
 
-  console.log(`[FB Comments] ${postCount} posts, ${highTrafficPosts.length} high-traffic supplemental, ${allComments.length} unique comments`);
+  // order=reverse_chronological IS valid as a direct query param (NOT in nested field expansion)
+  await Promise.all(postsToCheck.map(async (meta) => {
+    const url = `${META_BASE}/${meta.postId}/comments?fields=id,message,created_time,like_count,comments.limit(25){id,message,created_time,like_count}&order=reverse_chronological&limit=50&access_token=${pageAccessToken}`;
+    const data = await apiFetch(url);
+    if (data.error) return;
+    (data.data || []).forEach(c => {
+      pushComment({ platform: 'facebook', id: c.id, author: 'Facebook commenter', text: c.message, publishedAt: c.created_time, likeCount: c.like_count || 0, ...meta });
+      (c.comments?.data || []).forEach(r => {
+        pushComment({ platform: 'facebook', id: r.id, author: 'Facebook commenter', text: r.message, publishedAt: r.created_time, likeCount: r.like_count || 0, ...meta, isReply: true, parentCommentId: c.id, parentCommentText: c.message || '' });
+      });
+    });
+  }));
+
+  console.log(`[FB Comments] ${postCount} posts fetched, ${postsToCheck.length} checked for comments, ${allComments.length} unique comments`);
   allComments.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
   res.json({ comments: allComments });
 });
