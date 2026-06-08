@@ -5257,8 +5257,13 @@ function currentYmKey() { return currentWeekKey(); }
 
 function saveAhsScore(overallScore, perPlatform) {
     if (overallScore === null) return;
-    // Stamp today's overall AHS so the daily timeline (365d) builds up over time
-    saveDailyAhs(overallScore);
+    // Only stamp the daily timeline when viewing the default 28-day window.
+    // If the user has switched to 60D, 90D, or a custom range, the computed AHS
+    // reflects a different dataset — writing it would corrupt the timeline, which
+    // is meant to show the rolling 30-day score for each calendar day, unchanged
+    // regardless of what date range is selected in the UI.
+    var isDefaultWindow = (dateRangeDays === 28 && !dateFrom && !dateTo);
+    if (isDefaultWindow) saveDailyAhs(overallScore);
     var history = getAhsHistory();
     var key = currentWeekKey();
     var existing = history[key] || { platforms: {} };
