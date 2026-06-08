@@ -6229,21 +6229,14 @@ function updateBaselinesFromData(data) {
     // Only update from the default 28D window.
     var isDefaultWindow = (dateRangeDays === 28 && !dateFrom && !dateTo);
     if (!isDefaultWindow) return;
-    // Check if this is a fresh baseline start (no stored data for the current key).
-    // If so, skip the once-per-day guard so real MGE data seeds the baselines immediately
-    // instead of leaving scores based on cold-start seed constants.
-    var existingBaselines = _loadBaselines();
-    var hasAnyBaseline = Object.keys(existingBaselines).length > 0;
+    // Once-per-day throttle: update baselines at most once per calendar day.
+    // This prevents reload drift while still capturing daily changes.
     var today = new Date().toISOString().slice(0, 10);
-    if (hasAnyBaseline) {
-        // Normal path: once-per-day throttle to prevent reload drift.
-        try {
-            var lastUpdate = localStorage.getItem('mge_baseline_last_update');
-            if (lastUpdate === today) return;
-            localStorage.setItem('mge_baseline_last_update', today);
-        } catch(e) {}
-    }
-    // else: fresh start (new key or cleared storage) — run the update immediately without date guard.
+    try {
+        var lastUpdate = localStorage.getItem('mge_baseline_last_update');
+        if (lastUpdate === today) return;
+        localStorage.setItem('mge_baseline_last_update', today);
+    } catch(e) {}
     var platforms = ['fb', 'ig', 'li', 'yt'];
     var totalViews = 0, totalViewPosts = 0;
     var totalReach = 0, totalReachPosts = 0;
@@ -6634,8 +6627,6 @@ function renderSentiment(data) {
         };
         perPlatform[k] = { pillars, score: ahsComposite(pillars), postCount: pe.postCount };
     });
-    // Update platform baselines (per-platform AND cumulative 'total') with current-period values.
-    updateBaselinesFromData(data);
 
     // ===== OVERALL MGE AHS — computed from CUMULATIVE data, not from per-platform composites =====
     // Per Taylor (2026-05-04): per-platform AHS is reference-only; the gauge reflects MGE's overall
@@ -6675,6 +6666,11 @@ function renderSentiment(data) {
     };
     const overallScore = ahsComposite(overallPillars);
     const overall = { score: overallScore === null ? 0 : overallScore, label: ahsLabel(overallScore) };
+
+    // Update baselines AFTER all scoring so scores always compare against the PREVIOUS observation,
+    // not the current one. If we updated first, reach/attention would always score exactly 50
+    // (current data / current data = 1.0 ratio). This way, today's data becomes tomorrow's baseline.
+    updateBaselinesFromData(data);
 
     // Build calc rows for the info modal (per-platform reference detail, not used in overall calc)
     const calcRows = platformKeys.map(k => {
