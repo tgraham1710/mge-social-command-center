@@ -383,7 +383,9 @@ app.get('/api/facebook/all-comments', async (req, res) => {
   // Pagination: fetch up to MAX_POST_PAGES pages of posts (100 each) so that comments on older
   // posts still surface at the top of the feed when they receive new replies.
   const MAX_POST_PAGES = 3; // 300 posts max — covers ~6–12 months of typical page activity
-  let nextUrl = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,full_picture,permalink_url,comments.limit(100){id,message,created_time,like_count,comments.limit(50){id,message,created_time,like_count}}&limit=100&access_token=${pageAccessToken}`;
+  // .order(reverse_chronological) ensures we get the 100 MOST RECENT comments per post,
+  // not the 100 oldest — critical for surfacing new replies on older posts.
+  let nextUrl = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,full_picture,permalink_url,comments.limit(100).order(reverse_chronological){id,message,created_time,like_count,comments.limit(50){id,message,created_time,like_count}}&limit=100&access_token=${pageAccessToken}`;
   nextUrl += dateRangeParams(req);
   const allComments = [];
   let postCount = 0;
