@@ -6223,18 +6223,25 @@ function _weightedEngagementPerPost(pe) {
 // Tracks per-platform baselines AND a 'total' baseline (cumulative across MGE) used by the overall AHS.
 // Skipped during prior-period recomputation (would double-count and bias the average).
 function updateBaselinesFromData(data) {
-    // Engagement and reach now use fixed industry benchmarks (no EWMA needed).
-    // Only attention (views/post) still uses EWMA since there's no universal benchmark for it.
     if (!data || !data.platformEngagement) return;
-    // Only update from the default 28D window and once per calendar day.
+    // Only update from the default 28D window.
     var isDefaultWindow = (dateRangeDays === 28 && !dateFrom && !dateTo);
     if (!isDefaultWindow) return;
+    // Check if this is a fresh baseline start (no stored data for the current key).
+    // If so, skip the once-per-day guard so real MGE data seeds the baselines immediately
+    // instead of leaving scores based on cold-start seed constants.
+    var existingBaselines = _loadBaselines();
+    var hasAnyBaseline = Object.keys(existingBaselines).length > 0;
     var today = new Date().toISOString().slice(0, 10);
-    try {
-        var lastUpdate = localStorage.getItem('mge_baseline_last_update');
-        if (lastUpdate === today) return;
-        localStorage.setItem('mge_baseline_last_update', today);
-    } catch(e) {}
+    if (hasAnyBaseline) {
+        // Normal path: once-per-day throttle to prevent reload drift.
+        try {
+            var lastUpdate = localStorage.getItem('mge_baseline_last_update');
+            if (lastUpdate === today) return;
+            localStorage.setItem('mge_baseline_last_update', today);
+        } catch(e) {}
+    }
+    // else: fresh start (new key or cleared storage) — run the update immediately without date guard.
     var platforms = ['fb', 'ig', 'li', 'yt'];
     var totalViews = 0, totalViewPosts = 0;
     var totalReach = 0, totalReachPosts = 0;
