@@ -563,47 +563,83 @@ app.get('/api/instagram/comments/:mediaId', async (req, res) => {
 app.get('/api/instagram/all-comments', async (req, res) => {
   const { accessToken, igUserId } = config.instagram || {};
   if (!accessToken || !igUserId) return res.json({ error: true, message: 'Instagram not configured' });
-  // Field expansion: comments{} now includes replies{} so threaded responses come back too
-  let url = `${META_BASE}/${igUserId}/media?fields=id,caption,media_url,thumbnail_url,timestamp,comments.limit(50){id,text,timestamp,username,like_count,replies.limit(50){id,text,timestamp,username,like_count}}&limit=50&access_token=${accessToken}`;
-  if (req.query.since) { const sinceUnix = Math.floor(new Date(req.query.since).getTime() / 1000); url += '&since=' + sinceUnix; }
-  const mediaData = await apiFetch(url);
-  if (mediaData.error) return res.json(mediaData);
+
+  // STRATEGY (mirrors the FB two-phase approach — same complexity budget issue):
+  // Phase 1 — Fetch media with BARE fields only (no nested comments).
+  //   Nesting comments{} inside /media hits Meta's complexity budget and silently
+  //   reduces page size from 50 to ~10, causing nearly all posts to be skipped.
+  //   Bare fields return the full 50/page and we paginate to scan more posts.
+  // Phase 2 — For each post, fetch comments via the direct /{mediaId}/comments
+  //   endpoint. This is a dedicated comments query (not nested), so the complexity
+  //   budget is independent of the media fetch. Replies are included inline here
+  //   because this is a direct comments call — that's safe.
+
+  const seenIds = new Set();
   const allComments = [];
-  (mediaData.data || []).forEach(post => {
-    const comments = post.comments?.data || [];
-    comments.forEach(c => {
-      allComments.push({
-        platform: 'instagram',
-        id: c.id,
-        author: c.username || 'Instagram User',
-        text: c.text,
-        publishedAt: c.timestamp,
-        likeCount: c.like_count || 0,
+  const allMedia = [];
+  let mediaCount = 0;
+
+  function pushComment(obj) {
+    if (obj.id && !seenIds.has(obj.id)) { seenIds.add(obj.id); allComments.push(obj); }
+  }
+
+  // ── Phase 1: paginate through IG media (bare fields — no nested comments) ──
+  let phase1Base = `${META_BASE}/${igUserId}/media?fields=id,caption,media_url,thumbnail_url,timestamp&limit=50&access_token=${accessToken}`;
+  if (req.query.since) { phase1Base += '&since=' + Math.floor(new Date(req.query.since).getTime() / 1000); }
+  let nextUrl = phase1Base;
+
+  for (let page = 0; page < 6 && nextUrl; page++) {
+    const mediaData = await apiFetch(nextUrl);
+    if (mediaData.error) {
+      if (page === 0) {
+        console.error('[IG Comments] Media fetch error:', JSON.stringify(mediaData).substring(0, 300));
+        return res.json(mediaData);
+      }
+      break;
+    }
+    (mediaData.data || []).forEach(post => {
+      mediaCount++;
+      allMedia.push({
         postId: post.id,
         postCaption: post.caption || '',
-        postImage: post.media_url || post.thumbnail_url || ''
+        postImage: post.media_url || post.thumbnail_url || '',
+        timestamp: post.timestamp
       });
-      // Threaded replies — flatten so they count just like top-level comments
-      const replies = c.replies?.data || [];
-      replies.forEach(r => {
-        allComments.push({
-          platform: 'instagram',
-          id: r.id,
-          author: r.username || 'Instagram User',
-          text: r.text,
-          publishedAt: r.timestamp,
-          likeCount: r.like_count || 0,
-          postId: post.id,
-          postCaption: post.caption || '',
-          postImage: post.media_url || post.thumbnail_url || '',
-          isReply: true,
-          parentCommentId: c.id,
-          parentAuthor: c.username || '',
+    });
+    nextUrl = mediaData.paging?.next || null;
+  }
+
+  // ── Phase 2: fetch comments for the most recent 50 posts ──────────────────
+  // IG has no updated_time equivalent, so we use timestamp (creation time) and
+  // scan the freshest posts. Comments on old IG posts are rare vs. FB.
+  allMedia.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  const postsToCheck = allMedia.slice(0, 50);
+
+  await Promise.all(postsToCheck.map(async (meta) => {
+    // Replies are safe to include inline here — this is a direct /comments query,
+    // not nested inside a /media expansion, so complexity budget is separate.
+    const url = `${META_BASE}/${meta.postId}/comments?fields=id,text,timestamp,username,like_count,replies.limit(50){id,text,timestamp,username,like_count}&limit=100&access_token=${accessToken}`;
+    const data = await apiFetch(url);
+    if (data.error) return;
+    (data.data || []).forEach(c => {
+      pushComment({
+        platform: 'instagram', id: c.id, author: c.username || 'Instagram User',
+        text: c.text, publishedAt: c.timestamp, likeCount: c.like_count || 0,
+        postId: meta.postId, postCaption: meta.postCaption, postImage: meta.postImage
+      });
+      (c.replies?.data || []).forEach(r => {
+        pushComment({
+          platform: 'instagram', id: r.id, author: r.username || 'Instagram User',
+          text: r.text, publishedAt: r.timestamp, likeCount: r.like_count || 0,
+          postId: meta.postId, postCaption: meta.postCaption, postImage: meta.postImage,
+          isReply: true, parentCommentId: c.id, parentAuthor: c.username || '',
           parentCommentText: c.text || ''
         });
       });
     });
-  });
+  }));
+
+  console.log(`[IG Comments] ${mediaCount} posts fetched, ${postsToCheck.length} checked for comments, ${allComments.length} unique comments`);
   allComments.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
   res.json({ comments: allComments });
 });
