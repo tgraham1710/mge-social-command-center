@@ -6165,6 +6165,16 @@ function _weightedEngagementPerPost(pe) {
 // Skipped during prior-period recomputation (would double-count and bias the average).
 function updateBaselinesFromData(data) {
     if (!data || !data.platformEngagement) return;
+    // Guard: only update baselines ONCE per calendar day. Each reload feeds the current
+    // period's data into the EWMA, which nudges the baseline toward current values by ~7%
+    // per call (w=0.93 at count=26). Multiple reloads in a day cause the baseline to drift
+    // toward current, shrinking the gap and dropping the AHS score ~1 pt per reload.
+    var today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    try {
+        var lastUpdate = localStorage.getItem('mge_baseline_last_update');
+        if (lastUpdate === today) return; // already updated today — skip to prevent drift
+        localStorage.setItem('mge_baseline_last_update', today);
+    } catch(e) {}
     var platforms = ['fb', 'ig', 'li', 'yt'];
     var periodDays = _getPeriodDays();
     var totalEngWeighted = 0, totalPosts = 0, totalReach = 0, totalViews = 0;
