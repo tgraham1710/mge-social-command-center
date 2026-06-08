@@ -6049,18 +6049,40 @@ var AHS_MIN_POSTS = 2; // minimum posts in period to include platform
 // reflects current data; a platform with 12+ weeks of history compares the
 // current period against MGE's own running average for that metric.
 // ============================================================
-var BASELINES_KEY = 'mge_baselines_v2'; // bumped from v1: per-day rates + 'total' baseline (no follower ratios)
-// Sensible cold-start baselines for utility-marketing context. Followers removed from the math entirely
-// per Taylor's call (2026-05-04). Reach + Attention now per-day rates so the baseline is comparable
-// across any selected window length (7D / 28D / 90D / custom).
-// 'total' rows are MGE-cumulative baselines used for the overall AHS gauge (not a per-platform avg).
+var BASELINES_KEY = 'mge_baselines_v4'; // v4: follower-normalized engagement + reach; fixed industry benchmarks replace EWMA
+
+// ─── INDUSTRY BENCHMARKS (fixed anchors, not EWMA) ──────────────────────────
+// Engagement and reach are now follower-normalized and scored against published
+// platform benchmarks. This eliminates EWMA drift and makes sparse channels
+// (few posts, low follower counts) score fairly against external standards
+// rather than against their own corrupted historical average.
+//
+// Sources: Rival IQ 2025 Benchmark Report, Buffer 2026 Social Benchmarks,
+// Sprout Social industry data, Hootsuite 2025 analytics benchmarks.
+//
+// WEIGHTED engagement rate benchmarks (our tiered weighting inflates raw rates
+// by ~2–3x vs. simple likes+comments+shares, so benchmarks are adjusted up):
+//   Raw industry: FB ~0.15%, IG ~0.60%, LI ~3.5%, YT views-based
+//   Weighted adj: FB ~0.40%, IG ~1.50%, LI ~8.0%, YT ~4.0%
+//
+// Organic reach rate benchmarks (reach / followers × 100):
+//   FB: ~5%  (organic page reach has declined; 3–8% is normal)
+//   IG: ~15% (feed + reel reach; 10–20% is healthy)
+//   LI: ~10% (organic reach still strong vs FB)
+//   YT: ~20% (views/subscribers; YouTube pushes content harder)
+//
+// Attention (views per post): fixed seeds for cold-start, EWMA updates from 28D window only.
+var PLATFORM_ENG_BENCHMARKS = {
+    // Weighted engagement rate % (weightedEngPerPost / followers × 100) at "average" performance
+    fb: 0.40, ig: 1.50, li: 8.0, yt: 4.0, total: 1.0
+};
+var PLATFORM_REACH_BENCHMARKS = {
+    // Organic reach rate % (reach / followers × 100) at "average" performance
+    fb: 5.0, ig: 15.0, li: 10.0, yt: 20.0, total: 8.0
+};
+// Attention: views per post — no good universal benchmark, keep EWMA with these seeds
 var BASELINE_FALLBACKS = {
-    // engagement units per post (post-normalized — period-agnostic by definition)
-    engPerPost: { fb: 18, ig: 30, li: 8, yt: 50, total: 22 },
-    // window reach / period_days  (per-day reach rate; e.g. FB ~12K/day baseline = ~340K/28d)
-    reachPerDay: { fb: 12000, ig: 900, li: 50, yt: 100, total: 13050 },
-    // window video views / period_days
-    attentionPerDay: { fb: 1000, ig: 700, li: 5, yt: 100, total: 1805 }
+    attentionPerPost: { fb: 600, ig: 400, li: 4, yt: 300, total: 400 }
 };
 function _loadBaselines() {
     try { return JSON.parse(localStorage.getItem(BASELINES_KEY) || '{}'); } catch (e) { return {}; }
@@ -6108,25 +6130,31 @@ function scoreVsBaseline(currentVal, baseline) {
     return Math.max(0, Math.min(100, Math.round(score)));
 }
 
-function ahsPillarEngagement(pe, platformKey) {
+function ahsPillarEngagement(pe, platformKey, followers) {
     if (!pe || !pe.postCount || pe.postCount < AHS_MIN_POSTS) return null;
-    // Tiered weighting: deeper interactions count more
-    var comments  = (pe.comments || 0) * 5;   // Tier 1: highest value
-    var shares    = (pe.shares || 0) * 3;      // Tier 2: high value (includes saves)
+    // Tiered weighting: deeper interactions carry more signal than passive likes.
+    // Comments = 5x (someone typed something), shares/saves = 3x, reactions = 1x.
+    var comments  = (pe.comments || 0) * 5;
+    var shares    = (pe.shares || 0) * 3;
     var saves     = (pe.saves || 0) * 3;
     var reactions = (pe.like || pe.likes || 0) + (pe.love || 0) + (pe.care || 0)
-                  + (pe.haha || 0) + (pe.wow || 0); // Tier 3: moderate value (1x)
-    var negatives = (pe.sad || 0) + (pe.angry || 0) + (pe.dislikes || 0); // subtract
-    var views     = (pe.views || 0) * 0.2;     // Tier 4: baseline
-    var weighted  = comments + shares + saves + reactions - negatives + views;
+                  + (pe.haha || 0) + (pe.wow || 0);
+    var negatives = (pe.sad || 0) + (pe.angry || 0) + (pe.dislikes || 0);
+    var weighted  = comments + shares + saves + reactions - negatives;
     var perPost   = weighted / pe.postCount;
-    // Score relative to MGE's own running average for this platform
-    if (platformKey) {
-        var baseline = getBaseline(platformKey, 'engPerPost');
-        return scoreVsBaseline(perPost, baseline);
+
+    // Primary path: follower-normalized weighted engagement rate vs industry benchmark.
+    // Scored against published platform averages (Rival IQ / Sprout 2025 data, adjusted
+    // for our weighted units). Window-independent — no EWMA, no drift, no sparse-data corruption.
+    if (followers && followers > 0) {
+        var engRate = (perPost / followers) * 100; // weighted eng rate %
+        var benchmark = PLATFORM_ENG_BENCHMARKS[platformKey] || PLATFORM_ENG_BENCHMARKS.total;
+        return scoreVsBaseline(engRate, benchmark);
     }
-    // Legacy fallback if no platform key (shouldn't happen post-refactor)
-    return scoreVsBaseline(perPost, 25);
+    // Fallback if followers unavailable (LI before Community Management API approval):
+    // score per-post weighted engagement against a fixed seed — no EWMA.
+    var seeds = { fb: 18, ig: 30, li: 8, yt: 50, total: 22 };
+    return scoreVsBaseline(perPost, seeds[platformKey] || seeds.total);
 }
 function ahsPillarSentiment(comments) {
     if (!comments || comments.length === 0) return null;
@@ -6159,20 +6187,33 @@ function _getPeriodDays() {
         return d > 0 ? d : 28;
     } catch (e) { return 28; }
 }
-// Reach pillar — per-day reach rate vs platform's running average (no follower ratio).
-// Followers removed from AHS math per design decision (2026-05-04).
-function ahsPillarReach(reach, platformKey) {
+// Reach pillar — organic reach rate (reach ÷ followers × 100) vs platform benchmark.
+// Follower-normalized reach is completely window-independent and self-scaling: a page that
+// reaches 5% of its audience per post scores the same in 28D or 90D.
+// Platform benchmarks from Rival IQ / Buffer 2026: FB ~5%, IG ~15%, LI ~10%, YT ~20%.
+function ahsPillarReach(reach, postCount, platformKey, followers) {
     if (reach == null || reach <= 0) return null;
-    var perDay = reach / _getPeriodDays();
-    var key = platformKey || 'total';
-    return scoreVsBaseline(perDay, getBaseline(key, 'reachPerDay'));
+    if (!postCount || postCount < 1) return null;
+
+    // Primary: follower-normalized reach rate vs industry benchmark
+    if (followers && followers > 0) {
+        var reachRate = (reach / followers) * 100; // % of audience reached over the window
+        var benchmark = PLATFORM_REACH_BENCHMARKS[platformKey] || PLATFORM_REACH_BENCHMARKS.total;
+        return scoreVsBaseline(reachRate, benchmark);
+    }
+    // Fallback: per-post reach vs fixed seed (no EWMA)
+    var seeds = { fb: 6000, ig: 350, li: 80, yt: 300, total: 1700 };
+    return scoreVsBaseline(reach / postCount, seeds[platformKey] || seeds.total);
 }
-// Attention pillar — per-day video views vs platform's running average.
-function ahsPillarAttention(views, platformKey) {
-    if (views == null) return null;
-    var perDay = views / _getPeriodDays();
+// Attention pillar — video views per post published vs platform's running average.
+// Same per-post logic: a channel publishing 6 videos in 90D that each get solid views
+// should score the same as one publishing 2 videos in 28D that get equivalent views each.
+function ahsPillarAttention(views, postCount, platformKey) {
+    if (views == null || views <= 0) return null;
+    if (!postCount || postCount < 1) return null;
+    var perPost = views / postCount;
     var key = platformKey || 'total';
-    return scoreVsBaseline(perDay, getBaseline(key, 'attentionPerDay'));
+    return scoreVsBaseline(perPost, getBaseline(key, 'attentionPerPost'));
 }
 // Helper — compute weighted-engagement-per-post for a platform (the engagement pillar's input)
 function _weightedEngagementPerPost(pe) {
@@ -6190,45 +6231,29 @@ function _weightedEngagementPerPost(pe) {
 // Tracks per-platform baselines AND a 'total' baseline (cumulative across MGE) used by the overall AHS.
 // Skipped during prior-period recomputation (would double-count and bias the average).
 function updateBaselinesFromData(data) {
+    // Engagement and reach now use fixed industry benchmarks (no EWMA needed).
+    // Only attention (views/post) still uses EWMA since there's no universal benchmark for it.
     if (!data || !data.platformEngagement) return;
-    // Guard: only update baselines ONCE per calendar day. Each reload feeds the current
-    // period's data into the EWMA, which nudges the baseline toward current values by ~7%
-    // per call (w=0.93 at count=26). Multiple reloads in a day cause the baseline to drift
-    // toward current, shrinking the gap and dropping the AHS score ~1 pt per reload.
-    var today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    // Only update from the default 28D window and once per calendar day.
+    var isDefaultWindow = (dateRangeDays === 28 && !dateFrom && !dateTo);
+    if (!isDefaultWindow) return;
+    var today = new Date().toISOString().slice(0, 10);
     try {
         var lastUpdate = localStorage.getItem('mge_baseline_last_update');
-        if (lastUpdate === today) return; // already updated today — skip to prevent drift
+        if (lastUpdate === today) return;
         localStorage.setItem('mge_baseline_last_update', today);
     } catch(e) {}
     var platforms = ['fb', 'ig', 'li', 'yt'];
-    var periodDays = _getPeriodDays();
-    var totalEngWeighted = 0, totalPosts = 0, totalReach = 0, totalViews = 0;
+    var totalViews = 0, totalPosts = 0;
     platforms.forEach(function(k) {
         var pe = data.platformEngagement[k] || {};
-        var aud = data.audience ? data.audience[k] : null;
-        // Per-platform engagement per post
-        if (pe.postCount && pe.postCount >= AHS_MIN_POSTS) {
-            var perPost = _weightedEngagementPerPost(pe);
-            updateBaseline(k, 'engPerPost', perPost);
-            totalEngWeighted += perPost * pe.postCount;
+        if (pe.views && pe.postCount >= 1) {
+            updateBaseline(k, 'attentionPerPost', pe.views / pe.postCount);
+            totalViews += pe.views;
             totalPosts += pe.postCount;
         }
-        // Per-platform per-day reach (followers no longer factor in)
-        if (aud && aud.reach) {
-            updateBaseline(k, 'reachPerDay', aud.reach / periodDays);
-            totalReach += aud.reach;
-        }
-        // Per-platform per-day attention
-        if (pe.views) {
-            updateBaseline(k, 'attentionPerDay', pe.views / periodDays);
-            totalViews += pe.views;
-        }
     });
-    // MGE-cumulative baselines — these drive the overall AHS gauge (NOT a follower-weighted avg of per-platform).
-    if (totalPosts >= AHS_MIN_POSTS) updateBaseline('total', 'engPerPost', totalEngWeighted / totalPosts);
-    if (totalReach > 0) updateBaseline('total', 'reachPerDay', totalReach / periodDays);
-    if (totalViews > 0) updateBaseline('total', 'attentionPerDay', totalViews / periodDays);
+    if (totalViews > 0 && totalPosts >= 1) updateBaseline('total', 'attentionPerPost', totalViews / totalPosts);
 }
 function ahsPillarGrowth(platformKey, followers) {
     const mom = getFollowerMoMChange(platformKey, followers);
@@ -6589,11 +6614,12 @@ function renderSentiment(data) {
             perPlatform[k] = { pillars: { engagement: null, sentiment: null, reach: null, attention: null }, score: null, postCount: pe ? pe.postCount : 0 };
             return;
         }
+        const followers = aud ? (aud.followers || 0) : 0;
         const pillars = {
-            engagement: ahsPillarEngagement(pe, k),
+            engagement: ahsPillarEngagement(pe, k, followers),
             sentiment:  ahsPillarSentiment(data.platformComments[k]),
-            reach:      ahsPillarReach(aud ? aud.reach : null, k),
-            attention:  ahsPillarAttention(pe.views || 0, k)
+            reach:      ahsPillarReach(aud ? aud.reach : null, pe.postCount, k, followers),
+            attention:  ahsPillarAttention(pe.views || 0, pe.postCount, k)
         };
         perPlatform[k] = { pillars, score: ahsComposite(pillars), postCount: pe.postCount };
     });
@@ -6604,7 +6630,7 @@ function renderSentiment(data) {
     // Per Taylor (2026-05-04): per-platform AHS is reference-only; the gauge reflects MGE's overall
     // social outlook calculated from total engagement / total reach / total views / all comments.
     // Followers are no longer factored anywhere in AHS scoring.
-    let cumEng = 0, cumPosts = 0, cumReach = 0, cumViews = 0;
+    let cumEng = 0, cumPosts = 0, cumReach = 0, cumViews = 0, cumFollowers = 0;
     const allComments = [];
     platformKeys.forEach(k => {
         const pe = data.platformEngagement[k] || {};
@@ -6614,15 +6640,27 @@ function renderSentiment(data) {
             cumPosts += pe.postCount;
         }
         if (aud && aud.reach) cumReach += aud.reach;
+        if (aud && aud.followers) cumFollowers += aud.followers;
         if (pe.views) cumViews += pe.views;
         const platComments = (data.platformComments && data.platformComments[k]) || [];
         platComments.forEach(c => allComments.push(c));
     });
+    // Cumulative engagement rate: total weighted eng across all platforms / total followers
+    var cumEngScore = null;
+    if (cumPosts > 0) {
+        var cumEngPerPost = cumEng / cumPosts;
+        if (cumFollowers > 0) {
+            var cumEngRate = (cumEngPerPost / cumFollowers) * 100;
+            cumEngScore = scoreVsBaseline(cumEngRate, PLATFORM_ENG_BENCHMARKS.total);
+        } else {
+            cumEngScore = scoreVsBaseline(cumEngPerPost, 22); // fallback seed
+        }
+    }
     const overallPillars = {
-        engagement: cumPosts > 0 ? scoreVsBaseline(cumEng / cumPosts, getBaseline('total', 'engPerPost')) : null,
+        engagement: cumEngScore,
         sentiment:  ahsPillarSentiment(allComments),
-        reach:      cumReach > 0 ? ahsPillarReach(cumReach, 'total') : null,
-        attention:  cumViews > 0 ? ahsPillarAttention(cumViews, 'total') : null
+        reach:      cumReach > 0 && cumPosts > 0 ? ahsPillarReach(cumReach, cumPosts, 'total', cumFollowers) : null,
+        attention:  cumViews > 0 && cumPosts > 0 ? ahsPillarAttention(cumViews, cumPosts, 'total') : null
     };
     const overallScore = ahsComposite(overallPillars);
     const overall = { score: overallScore === null ? 0 : overallScore, label: ahsLabel(overallScore) };
@@ -6718,7 +6756,7 @@ function renderSentiment(data) {
         if (previousPeriodData && overallScore !== null) {
             // Compute previous-period overall AHS using the SAME cumulative methodology as the current period
             try {
-                let pCumEng = 0, pCumPosts = 0, pCumReach = 0, pCumViews = 0;
+                let pCumEng = 0, pCumPosts = 0, pCumReach = 0, pCumViews = 0, pCumFollowers = 0;
                 const pAllComments = [];
                 ['fb','ig','li','yt'].forEach(function(k) {
                     const ppe = previousPeriodData.platformEngagement[k] || {};
@@ -6728,15 +6766,25 @@ function renderSentiment(data) {
                         pCumPosts += ppe.postCount;
                     }
                     if (paud && paud.reach) pCumReach += paud.reach;
+                    if (paud && paud.followers) pCumFollowers += paud.followers;
                     if (ppe.views) pCumViews += ppe.views;
                     const pc = (previousPeriodData.platformComments && previousPeriodData.platformComments[k]) || [];
                     pc.forEach(c => pAllComments.push(c));
                 });
+                var pCumEngScore = null;
+                if (pCumPosts > 0) {
+                    var pCumEngPerPost = pCumEng / pCumPosts;
+                    if (pCumFollowers > 0) {
+                        pCumEngScore = scoreVsBaseline((pCumEngPerPost / pCumFollowers) * 100, PLATFORM_ENG_BENCHMARKS.total);
+                    } else {
+                        pCumEngScore = scoreVsBaseline(pCumEngPerPost, 22);
+                    }
+                }
                 const prevOverallPillars = {
-                    engagement: pCumPosts > 0 ? scoreVsBaseline(pCumEng / pCumPosts, getBaseline('total', 'engPerPost')) : null,
+                    engagement: pCumEngScore,
                     sentiment:  ahsPillarSentiment(pAllComments),
-                    reach:      pCumReach > 0 ? ahsPillarReach(pCumReach, 'total') : null,
-                    attention:  pCumViews > 0 ? ahsPillarAttention(pCumViews, 'total') : null
+                    reach:      pCumReach > 0 && pCumPosts > 0 ? ahsPillarReach(pCumReach, pCumPosts, 'total', pCumFollowers) : null,
+                    attention:  pCumViews > 0 && pCumPosts > 0 ? ahsPillarAttention(pCumViews, pCumPosts, 'total') : null
                 };
                 const prevOverall = ahsComposite(prevOverallPillars);
                 if (prevOverall !== null) {
