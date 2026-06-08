@@ -6049,40 +6049,31 @@ var AHS_MIN_POSTS = 2; // minimum posts in period to include platform
 // reflects current data; a platform with 12+ weeks of history compares the
 // current period against MGE's own running average for that metric.
 // ============================================================
-var BASELINES_KEY = 'mge_baselines_v4'; // v4: follower-normalized engagement + reach; fixed industry benchmarks replace EWMA
+var BASELINES_KEY = 'mge_baselines_v5'; // v5: reach switched to per-post EWMA (v4 total-window benchmarks inflated by paid reach)
 
-// ─── INDUSTRY BENCHMARKS (fixed anchors, not EWMA) ──────────────────────────
-// Engagement and reach are now follower-normalized and scored against published
-// platform benchmarks. This eliminates EWMA drift and makes sparse channels
-// (few posts, low follower counts) score fairly against external standards
-// rather than against their own corrupted historical average.
+// ─── INDUSTRY BENCHMARKS (fixed anchors, engagement only) ───────────────────
+// Engagement is follower-normalized and scored against published platform benchmarks.
+// Reach and Attention both use EWMA (MGE's own rolling average) as the baseline —
+// this is more meaningful than external benchmarks because MGE's reach metric is
+// page_impressions_unique summed over the window (inflated by paid promotion), not
+// per-post organic reach, so comparing it to an organic % benchmark is apples-to-oranges.
 //
-// Sources: Rival IQ 2025 Benchmark Report, Buffer 2026 Social Benchmarks,
-// Sprout Social industry data, Hootsuite 2025 analytics benchmarks.
+// Sources: Rival IQ 2025, Buffer 2026, Sprout Social, Hootsuite 2025.
 //
-// WEIGHTED engagement rate benchmarks (our tiered weighting inflates raw rates
-// by ~2–3x vs. simple likes+comments+shares, so benchmarks are adjusted up):
+// WEIGHTED engagement rate benchmarks:
 //   Raw industry: FB ~0.15%, IG ~0.60%, LI ~3.5%, YT views-based
 //   Weighted adj: FB ~0.40%, IG ~1.50%, LI ~8.0%, YT ~4.0%
-//
-// Organic reach rate benchmarks (reach / followers × 100):
-//   FB: ~5%  (organic page reach has declined; 3–8% is normal)
-//   IG: ~15% (feed + reel reach; 10–20% is healthy)
-//   LI: ~10% (organic reach still strong vs FB)
-//   YT: ~20% (views/subscribers; YouTube pushes content harder)
-//
-// Attention (views per post): fixed seeds for cold-start, EWMA updates from 28D window only.
 var PLATFORM_ENG_BENCHMARKS = {
     // Weighted engagement rate % (weightedEngPerPost / followers × 100) at "average" performance
     fb: 0.40, ig: 1.50, li: 8.0, yt: 4.0, total: 1.0
 };
-var PLATFORM_REACH_BENCHMARKS = {
-    // Organic reach rate % (reach / followers × 100) at "average" performance
-    fb: 5.0, ig: 15.0, li: 10.0, yt: 20.0, total: 8.0
-};
-// Attention: views per post — no good universal benchmark, keep EWMA with these seeds
+// Reach + Attention: per-post raw values vs EWMA. Seeds are cold-start fallbacks;
+// EWMA replaces them after a few 28D observations of MGE's actual data.
+//   reachPerPost seeds: typical unique-people-reached-per-post for a ~10-15K follower utility page
+//   attentionPerPost seeds: typical video views per post
 var BASELINE_FALLBACKS = {
-    attentionPerPost: { fb: 600, ig: 400, li: 4, yt: 300, total: 400 }
+    attentionPerPost: { fb: 600,  ig: 400, li: 4,   yt: 300,  total: 400  },
+    reachPerPost:     { fb: 3000, ig: 600, li: 200, yt: 1000, total: 1500 }
 };
 function _loadBaselines() {
     try { return JSON.parse(localStorage.getItem(BASELINES_KEY) || '{}'); } catch (e) { return {}; }
@@ -6122,11 +6113,17 @@ function updateBaseline(platform, metric, currentVal) {
     _saveBaselines(b);
 }
 // Score a current value against its baseline. Uses tanh normalization centered on 1.0x ratio = 50.
-// 1.5x baseline → ~75, 2.0x → ~88, 0.5x → ~25, 0.25x → ~12. Bounded 0..100.
+// Divisor 1.5 gives a realistic spread so 100 means genuinely exceptional:
+//   1.5x benchmark → ~66 (above average)
+//   2.0x benchmark → ~79 (strong)
+//   3.0x benchmark → ~93 (excellent)
+//   5.0x benchmark → ~99 (exceptional)
+//   0.5x benchmark → ~34 (below average)
+//   0.25x benchmark → ~21 (weak)
 function scoreVsBaseline(currentVal, baseline) {
     if (baseline == null || baseline <= 0) return null;
     var ratio = currentVal / baseline;
-    var score = 50 + 50 * Math.tanh((ratio - 1) / 0.6);
+    var score = 50 + 50 * Math.tanh((ratio - 1) / 1.5);
     return Math.max(0, Math.min(100, Math.round(score)));
 }
 
@@ -6187,23 +6184,18 @@ function _getPeriodDays() {
         return d > 0 ? d : 28;
     } catch (e) { return 28; }
 }
-// Reach pillar — organic reach rate (reach ÷ followers × 100) vs platform benchmark.
-// Follower-normalized reach is completely window-independent and self-scaling: a page that
-// reaches 5% of its audience per post scores the same in 28D or 90D.
-// Platform benchmarks from Rival IQ / Buffer 2026: FB ~5%, IG ~15%, LI ~10%, YT ~20%.
-function ahsPillarReach(reach, postCount, platformKey, followers) {
+// Reach pillar — per-post reach vs MGE's own EWMA baseline.
+// We use per-post rather than follower-normalized because aud.fb.reach is
+// page_impressions_unique *summed across days* (not unique per window), which
+// can be 10-100× followers when paid promotion is running. That makes any fixed
+// benchmark (e.g. 5% organic rate) irrelevant. Instead we ask: "Is our reach
+// this period above or below our own rolling average?" — 50 = typical, 80+ = strong.
+function ahsPillarReach(reach, postCount, platformKey /*, followers unused in v5 */) {
     if (reach == null || reach <= 0) return null;
     if (!postCount || postCount < 1) return null;
-
-    // Primary: follower-normalized reach rate vs industry benchmark
-    if (followers && followers > 0) {
-        var reachRate = (reach / followers) * 100; // % of audience reached over the window
-        var benchmark = PLATFORM_REACH_BENCHMARKS[platformKey] || PLATFORM_REACH_BENCHMARKS.total;
-        return scoreVsBaseline(reachRate, benchmark);
-    }
-    // Fallback: per-post reach vs fixed seed (no EWMA)
-    var seeds = { fb: 6000, ig: 350, li: 80, yt: 300, total: 1700 };
-    return scoreVsBaseline(reach / postCount, seeds[platformKey] || seeds.total);
+    var perPost = reach / postCount;
+    var key = platformKey || 'total';
+    return scoreVsBaseline(perPost, getBaseline(key, 'reachPerPost'));
 }
 // Attention pillar — video views per post published vs platform's running average.
 // Same per-post logic: a channel publishing 6 videos in 90D that each get solid views
@@ -6244,16 +6236,26 @@ function updateBaselinesFromData(data) {
         localStorage.setItem('mge_baseline_last_update', today);
     } catch(e) {}
     var platforms = ['fb', 'ig', 'li', 'yt'];
-    var totalViews = 0, totalPosts = 0;
+    var totalViews = 0, totalViewPosts = 0;
+    var totalReach = 0, totalReachPosts = 0;
     platforms.forEach(function(k) {
-        var pe = data.platformEngagement[k] || {};
+        var pe  = data.platformEngagement[k] || {};
+        var aud = (data.audience && data.audience[k]) || {};
+        // Attention: views per post
         if (pe.views && pe.postCount >= 1) {
             updateBaseline(k, 'attentionPerPost', pe.views / pe.postCount);
             totalViews += pe.views;
-            totalPosts += pe.postCount;
+            totalViewPosts += pe.postCount;
+        }
+        // Reach: raw platform reach per post (page_impressions_unique summed / posts)
+        if (aud.reach && pe.postCount >= 1) {
+            updateBaseline(k, 'reachPerPost', aud.reach / pe.postCount);
+            totalReach += aud.reach;
+            totalReachPosts += pe.postCount;
         }
     });
-    if (totalViews > 0 && totalPosts >= 1) updateBaseline('total', 'attentionPerPost', totalViews / totalPosts);
+    if (totalViews > 0 && totalViewPosts >= 1) updateBaseline('total', 'attentionPerPost', totalViews / totalViewPosts);
+    if (totalReach > 0 && totalReachPosts >= 1) updateBaseline('total', 'reachPerPost', totalReach / totalReachPosts);
 }
 function ahsPillarGrowth(platformKey, followers) {
     const mom = getFollowerMoMChange(platformKey, followers);
@@ -6618,7 +6620,7 @@ function renderSentiment(data) {
         const pillars = {
             engagement: ahsPillarEngagement(pe, k, followers),
             sentiment:  ahsPillarSentiment(data.platformComments[k]),
-            reach:      ahsPillarReach(aud ? aud.reach : null, pe.postCount, k, followers),
+            reach:      ahsPillarReach(aud ? aud.reach : null, pe.postCount, k),
             attention:  ahsPillarAttention(pe.views || 0, pe.postCount, k)
         };
         perPlatform[k] = { pillars, score: ahsComposite(pillars), postCount: pe.postCount };
@@ -6659,7 +6661,7 @@ function renderSentiment(data) {
     const overallPillars = {
         engagement: cumEngScore,
         sentiment:  ahsPillarSentiment(allComments),
-        reach:      cumReach > 0 && cumPosts > 0 ? ahsPillarReach(cumReach, cumPosts, 'total', cumFollowers) : null,
+        reach:      cumReach > 0 && cumPosts > 0 ? ahsPillarReach(cumReach, cumPosts, 'total') : null,
         attention:  cumViews > 0 && cumPosts > 0 ? ahsPillarAttention(cumViews, cumPosts, 'total') : null
     };
     const overallScore = ahsComposite(overallPillars);
@@ -6783,7 +6785,7 @@ function renderSentiment(data) {
                 const prevOverallPillars = {
                     engagement: pCumEngScore,
                     sentiment:  ahsPillarSentiment(pAllComments),
-                    reach:      pCumReach > 0 && pCumPosts > 0 ? ahsPillarReach(pCumReach, pCumPosts, 'total', pCumFollowers) : null,
+                    reach:      pCumReach > 0 && pCumPosts > 0 ? ahsPillarReach(pCumReach, pCumPosts, 'total') : null,
                     attention:  pCumViews > 0 && pCumPosts > 0 ? ahsPillarAttention(pCumViews, pCumPosts, 'total') : null
                 };
                 const prevOverall = ahsComposite(prevOverallPillars);
