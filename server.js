@@ -376,71 +376,76 @@ app.get('/api/facebook/comments/:postId', async (req, res) => {
 app.get('/api/facebook/all-comments', async (req, res) => {
   const { pageAccessToken, pageId } = config.facebook || {};
   if (!pageAccessToken || !pageId) return res.json({ error: true, message: 'Facebook not configured' });
-  // NOTE: 'from' field intentionally omitted from comments — Graph API v13+ silently drops the
-  // entire comments edge when 'from' is included and the privacy restriction triggers, resulting
-  // in zero comments returned. Authors show as 'Facebook commenter' which the frontend handles.
+  // IMPORTANT NOTES ON META GRAPH API GOTCHAS:
+  // 1. 'from' field omitted — Graph API v13+ silently drops the entire comments edge if included.
+  // 2. '.order()' is NOT valid in nested field expansion — also causes silent failure. Ordering
+  //    must be a separate query param on a direct /{post-id}/comments call.
   //
-  // Pagination: fetch up to MAX_POST_PAGES pages of posts (100 each) so that comments on older
-  // posts still surface at the top of the feed when they receive new replies.
-  const MAX_POST_PAGES = 3; // 300 posts max — covers ~6–12 months of typical page activity
-  // .order(reverse_chronological) ensures we get the 100 MOST RECENT comments per post,
-  // not the 100 oldest — critical for surfacing new replies on older posts.
-  let nextUrl = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,full_picture,permalink_url,comments.limit(100).order(reverse_chronological){id,message,created_time,like_count,comments.limit(50){id,message,created_time,like_count}}&limit=100&access_token=${pageAccessToken}`;
-  nextUrl += dateRangeParams(req);
+  // STRATEGY:
+  // Phase 1 — Fetch up to 500 posts (5 pages × 100) with nested comments. Also collect
+  //   comment counts via summary(true) to identify posts with >80 total comments.
+  // Phase 2 — For posts with >80 comments, the newest replies may be beyond position 100.
+  //   Make individual /{post-id}/comments?order=reverse_chronological calls (valid direct param)
+  //   in parallel (capped at 20 extra calls) to capture the most recent activity.
+  // Final — Deduplicate by comment ID, sort all by publishedAt desc.
+
+  const seenIds = new Set();
   const allComments = [];
+  const highTrafficPosts = []; // posts where total comments > 80 — need supplemental fetch
   let postCount = 0;
-  let commentCount = 0;
-  for (let page = 0; page < MAX_POST_PAGES && nextUrl; page++) {
+
+  function pushComment(obj) {
+    if (obj.id && !seenIds.has(obj.id)) { seenIds.add(obj.id); allComments.push(obj); }
+  }
+
+  // ── Phase 1: paginate through posts ────────────────────────────────────────
+  let nextUrl = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,full_picture,permalink_url,comments.limit(100).summary(true){id,message,created_time,like_count,comments.limit(50){id,message,created_time,like_count}}&limit=100&access_token=${pageAccessToken}`;
+  nextUrl += dateRangeParams(req);
+
+  for (let page = 0; page < 5 && nextUrl; page++) {
     const postsData = await apiFetch(nextUrl);
     if (postsData.error) {
       if (page === 0) {
         console.error('[FB Comments] Posts fetch error:', JSON.stringify(postsData).substring(0, 300));
         return res.json(postsData);
       }
-      break; // Ignore errors on subsequent pages — return what we have
+      break;
     }
     (postsData.data || []).forEach(post => {
       postCount++;
-      const comments = post.comments?.data || [];
-      comments.forEach(c => {
-        commentCount++;
-        allComments.push({
-          platform: 'facebook',
-          id: c.id,
-          author: 'Facebook commenter',
-          text: c.message,
-          publishedAt: c.created_time,
-          likeCount: c.like_count || 0,
-          postId: post.id,
-          postMessage: post.message || '',
-          postImage: post.full_picture || '',
-          postUrl: post.permalink_url || ''
-        });
-        // Threaded replies — flatten inline
-        const replies = c.comments?.data || [];
-        replies.forEach(r => {
-          commentCount++;
-          allComments.push({
-            platform: 'facebook',
-            id: r.id,
-            author: 'Facebook commenter',
-            text: r.message,
-            publishedAt: r.created_time,
-            likeCount: r.like_count || 0,
-            postId: post.id,
-            postMessage: post.message || '',
-            postImage: post.full_picture || '',
-            postUrl: post.permalink_url || '',
-            isReply: true,
-            parentCommentId: c.id,
-            parentCommentText: c.message || ''
-          });
+      const totalComments = post.comments?.summary?.total_count || 0;
+      const meta = { postId: post.id, postMessage: post.message || '', postImage: post.full_picture || '', postUrl: post.permalink_url || '' };
+
+      if (totalComments > 80) highTrafficPosts.push(meta);
+
+      (post.comments?.data || []).forEach(c => {
+        pushComment({ platform: 'facebook', id: c.id, author: 'Facebook commenter', text: c.message, publishedAt: c.created_time, likeCount: c.like_count || 0, ...meta });
+        (c.comments?.data || []).forEach(r => {
+          pushComment({ platform: 'facebook', id: r.id, author: 'Facebook commenter', text: r.message, publishedAt: r.created_time, likeCount: r.like_count || 0, ...meta, isReply: true, parentCommentId: c.id, parentCommentText: c.message || '' });
         });
       });
     });
     nextUrl = postsData.paging?.next || null;
   }
-  console.log(`[FB Comments] ${postCount} posts scanned, ${commentCount} comments found`);
+
+  // ── Phase 2: supplemental reverse-chronological fetch for high-traffic posts ─
+  // order=reverse_chronological IS valid as a direct query param (just not in field expansion)
+  if (highTrafficPosts.length > 0) {
+    const cap = highTrafficPosts.slice(0, 20);
+    await Promise.all(cap.map(async (meta) => {
+      const url = `${META_BASE}/${meta.postId}/comments?fields=id,message,created_time,like_count,comments.limit(25){id,message,created_time,like_count}&order=reverse_chronological&limit=50&access_token=${pageAccessToken}`;
+      const data = await apiFetch(url);
+      if (data.error) return;
+      (data.data || []).forEach(c => {
+        pushComment({ platform: 'facebook', id: c.id, author: 'Facebook commenter', text: c.message, publishedAt: c.created_time, likeCount: c.like_count || 0, ...meta });
+        (c.comments?.data || []).forEach(r => {
+          pushComment({ platform: 'facebook', id: r.id, author: 'Facebook commenter', text: r.message, publishedAt: r.created_time, likeCount: r.like_count || 0, ...meta, isReply: true, parentCommentId: c.id, parentCommentText: c.message || '' });
+        });
+      });
+    }));
+  }
+
+  console.log(`[FB Comments] ${postCount} posts, ${highTrafficPosts.length} high-traffic supplemental, ${allComments.length} unique comments`);
   allComments.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
   res.json({ comments: allComments });
 });
