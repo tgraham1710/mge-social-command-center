@@ -5674,6 +5674,11 @@ function renderPlatformPerformance(data) {
     container.innerHTML = platforms.map(function(p) {
         const peData = pe[p.key] || {};
         const stats = p.engagement(peData);
+        // Replace the Comments stat value with platformComments count (fetched comment objects,
+        // date-filtered) so it matches the KPI card and breakdown drawer — not the post-level
+        // summary which only covers posts CREATED in the window.
+        const pcLen = (data.platformComments && data.platformComments[p.key]) ? data.platformComments[p.key].length : null;
+        stats.forEach(function(s) { if (s.label === 'Comments' && pcLen !== null) s.val = pcLen; });
         const totalEngagement = totals[p.key];
         const postCount = peData.postCount || 0;
         const isTop = (p.key === topKey && topVal > 0);
