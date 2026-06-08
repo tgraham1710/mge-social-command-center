@@ -6049,7 +6049,7 @@ var AHS_MIN_POSTS = 2; // minimum posts in period to include platform
 // reflects current data; a platform with 12+ weeks of history compares the
 // current period against MGE's own running average for that metric.
 // ============================================================
-var BASELINES_KEY = 'mge_baselines_v5'; // v5: reach switched to per-post EWMA (v4 total-window benchmarks inflated by paid reach)
+var BASELINES_KEY = 'mge_baselines_v6'; // v6: seed-anchored EWMA — first obs blends at 1/9 weight, not 1/1
 
 // ─── INDUSTRY BENCHMARKS (fixed anchors, engagement only) ───────────────────
 // Engagement is follower-normalized and scored against published platform benchmarks.
@@ -6096,15 +6096,30 @@ function getBaselineSampleCount(platform, metric) {
 }
 // Update a baseline with a new observation. EWMA — earlier samples weight more as count grows.
 // Cap count at 26 so the average remains responsive to recent shifts (~6 months of weekly data).
+//
+// Key design: on first observation (no history), we DON'T use count=0 (which would give w=0
+// and completely overwrite the seed on the very first write). Instead we initialize as if the
+// seed had SEED_WEIGHT past observations, so the first real data point blends in at low weight
+// rather than immediately replacing the seed. This keeps scores informative for several weeks
+// until enough real MGE data has accumulated to anchor the baseline.
+var BASELINE_SEED_WEIGHT = 8; // treat seed as ~8 prior observations
 function updateBaseline(platform, metric, currentVal) {
     if (currentVal == null || isNaN(currentVal) || currentVal <= 0) return; // skip empty / suspicious data
     var b = _loadBaselines();
     if (!b[platform]) b[platform] = {};
     var m = b[platform][metric];
-    if (!m) {
-        b[platform][metric] = { avg: currentVal, count: 1, updatedAt: Date.now() };
+    if (!m || !m.count) {
+        // No history — initialize from the fallback seed with BASELINE_SEED_WEIGHT ghost observations,
+        // then blend in today's real observation at 1/(BASELINE_SEED_WEIGHT+1) weight.
+        var seedVal = (BASELINE_FALLBACKS[metric] || {})[platform] || currentVal;
+        var w = BASELINE_SEED_WEIGHT / (BASELINE_SEED_WEIGHT + 1);
+        b[platform][metric] = {
+            avg: w * seedVal + (1 - w) * currentVal,
+            count: BASELINE_SEED_WEIGHT + 1,
+            updatedAt: Date.now()
+        };
     } else {
-        // EWMA: new = old * w + current * (1-w), where w grows toward 0.93 as samples accumulate
+        // Normal EWMA: new = old * w + current * (1-w), where w grows toward 0.93 as samples accumulate
         var w = Math.min(0.93, m.count / (m.count + 1));
         m.avg = m.avg * w + currentVal * (1 - w);
         m.count = Math.min((m.count || 0) + 1, 26);
