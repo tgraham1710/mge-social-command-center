@@ -3127,31 +3127,12 @@
         .reviews-wrap { padding: 24px 32px 80px; max-width: 1400px; margin: 0 auto; }
         .reviews-header {
             display: flex; justify-content: space-between; align-items: flex-start;
-            gap: 24px; margin-bottom: 20px;
+            gap: 24px; margin-bottom: 24px;
         }
         .reviews-title { font-size: 22px; font-weight: 700; color: #0f172a; letter-spacing: -0.01em; }
         .reviews-subtitle { font-size: 13px; color: #64748b; margin-top: 4px; max-width: 720px; line-height: 1.45; }
         .reviews-meta { font-size: 12px; color: #475569; text-align: right; white-space: nowrap; }
         .reviews-meta strong { color: #0f172a; font-weight: 600; }
-
-        /* Summary panel */
-        .reviews-summary {
-            gap: 24px; margin-bottom: 24px;
-            background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
-            padding: 24px; align-items: flex-start;
-        }
-        .reviews-score-block { text-align: center; min-width: 120px; }
-        .reviews-score-number { font-size: 56px; font-weight: 800; color: #0f172a; line-height: 1; }
-        .reviews-score-stars { font-size: 22px; color: #F59E0B; margin: 6px 0; }
-        .reviews-score-count { font-size: 13px; color: #64748b; }
-        .reviews-divider { width: 1px; background: #e2e8f0; align-self: stretch; }
-        .reviews-breakdown { flex: 1; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
-        .reviews-bar-row { display: flex; align-items: center; gap: 10px; }
-        .reviews-bar-label { font-size: 12px; color: #475569; width: 26px; text-align: right; }
-        .reviews-bar-track { flex: 1; height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
-        .reviews-bar-fill { height: 100%; border-radius: 4px; background: #F59E0B; transition: width 0.6s ease; }
-        .reviews-bar-count { font-size: 12px; color: #94a3b8; width: 28px; }
-        .reviews-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; justify-content: flex-start; min-width: 140px; }
         .reviews-gbp-link {
             display: inline-flex; align-items: center; gap: 6px;
             font-size: 12px; color: #006553; font-weight: 600; text-decoration: none;
@@ -3160,9 +3141,68 @@
         }
         .reviews-gbp-link:hover { background: #006553; color: #fff; }
 
-        /* Filters + sort bar */
+        /* ── Summary Panels ─────────────────────────── */
+        .rv-panels { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+        @keyframes rvFadeUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .rv-panel {
+            flex: 1; min-width: 260px;
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
+            padding: 22px 24px; box-shadow: 0 2px 12px -4px rgba(15,23,42,0.08);
+            animation: rvFadeUp 0.45s ease both;
+        }
+        .rv-panel-head {
+            display: flex; align-items: center; gap: 9px;
+            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
+            color: #64748b; margin-bottom: 18px;
+            padding-bottom: 14px; border-bottom: 1px solid #f1f5f9;
+        }
+        .rv-panel-icon {
+            width: 22px; height: 22px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 800; color: #fff; flex-shrink: 0;
+        }
+        .rv-panel-icon.fb-ic { background: #1877F2; }
+        .rv-panel-icon.g-ic  { background: linear-gradient(135deg,#4285F4 0%,#34A853 50%,#FBBC04 75%,#EA4335 100%); font-size: 10px; }
+
+        /* Facebook panel */
+        .rv-fb-body { display: flex; align-items: center; gap: 22px; }
+        .rv-fb-donut { flex-shrink: 0; position: relative; width: 96px; height: 96px; }
+        .rv-fb-donut svg { width: 96px; height: 96px; }
+        .rv-fb-donut-pct {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; pointer-events: none;
+        }
+        .rv-fb-donut-num { font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1; }
+        .rv-fb-donut-lbl { font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+        .rv-fb-stats { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+        .rv-fb-stat-row { display: flex; align-items: center; gap: 12px; }
+        .rv-fb-stat-icon { font-size: 22px; line-height: 1; }
+        .rv-fb-stat-detail {}
+        .rv-fb-stat-num { font-size: 26px; font-weight: 800; line-height: 1; }
+        .rv-fb-stat-num.pos { color: #16a34a; }
+        .rv-fb-stat-num.neg { color: #dc2626; }
+        .rv-fb-stat-label { font-size: 12px; color: #64748b; margin-top: 2px; }
+        .rv-fb-sep { border: none; border-top: 1px solid #f1f5f9; margin: 2px 0; }
+
+        /* Google panel */
+        .rv-g-body { display: flex; align-items: center; gap: 20px; }
+        .rv-g-score-wrap { text-align: center; padding-right: 20px; border-right: 1px solid #f1f5f9; flex-shrink: 0; }
+        .rv-g-score { font-size: 52px; font-weight: 800; color: #0f172a; line-height: 1; }
+        .rv-g-stars { font-size: 20px; color: #F59E0B; margin: 6px 0 4px; }
+        .rv-g-count { font-size: 12px; color: #64748b; }
+        .rv-g-bars { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .rv-g-bar-row { display: flex; align-items: center; gap: 8px; }
+        .rv-g-bar-lbl { font-size: 11px; color: #64748b; width: 22px; text-align: right; }
+        .rv-g-bar-track { flex: 1; height: 7px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+        .rv-g-bar-fill { height: 100%; border-radius: 4px; background: #F59E0B; transition: width 0.7s ease; }
+        .rv-g-bar-n { font-size: 11px; color: #94a3b8; width: 20px; }
+
+        /* ── Filter + sort bar ─────────────────────── */
         .reviews-filter-bar {
-            gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;
+            display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;
         }
         .reviews-filter-chip {
             padding: 5px 14px; font-size: 12px; font-weight: 600; border-radius: 20px;
@@ -3178,54 +3218,77 @@
             padding: 5px 10px; color: #1B2559; background: #fff; cursor: pointer;
         }
 
-        /* Review cards */
-        .reviews-grid { display: flex; flex-direction: column; gap: 12px; }
+        /* ── Review card list ─────────────────────── */
+        .reviews-grid {
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
+            overflow: hidden; display: flex; flex-direction: column;
+        }
+        @keyframes rvCardIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
         .review-card {
-            background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
-            padding: 18px 20px; transition: box-shadow 0.2s ease, border-color 0.2s ease;
+            padding: 20px 24px; border-bottom: 1px solid #f1f5f9;
+            transition: background 0.15s; position: relative;
+            animation: rvCardIn 0.3s ease both;
         }
-        .review-card:hover { box-shadow: 0 8px 24px -6px rgba(15,23,42,0.12); border-color: #c7d2fe; }
-        .review-card.needs-reply { border-left: 4px solid #F59E0B; }
-        .review-card-header {
-            display: flex; align-items: flex-start; justify-content: space-between;
-            gap: 12px; margin-bottom: 8px;
-        }
-        .review-author { display: flex; align-items: center; gap: 10px; }
-        .review-avatar {
-            width: 38px; height: 38px; border-radius: 50%;
-            background: linear-gradient(135deg, #006553, #00A651);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 15px; font-weight: 700; color: #fff; flex-shrink: 0;
-        }
-        .review-author-name { font-size: 14px; font-weight: 700; color: #0f172a; }
-        .review-date { font-size: 12px; color: #94a3b8; margin-top: 2px; }
-        .review-stars-display { color: #F59E0B; font-size: 16px; letter-spacing: 1px; }
-        .review-stars-display.low { color: #EF4444; }
-        .review-body { font-size: 14px; color: #334155; line-height: 1.6; margin: 10px 0; }
-        .review-reply-section {
-            background: #f8fafc; border-radius: 8px; padding: 12px 14px;
-            margin-top: 10px; border-left: 3px solid #006553;
-        }
-        .review-reply-label {
-            font-size: 11px; font-weight: 700; color: #006553;
-            text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;
-        }
-        .review-reply-text { font-size: 13px; color: #475569; line-height: 1.5; }
-        .review-no-reply {
-            display: inline-flex; align-items: center; gap: 5px;
-            font-size: 11px; font-weight: 600; color: #D97706;
-            background: #FEF3C7; padding: 4px 10px; border-radius: 20px; margin-top: 8px;
-        }
+        .review-card:last-child { border-bottom: none; }
+        .review-card:hover { background: #fafbff; }
+        .review-card.needs-reply { border-left: 3px solid #F59E0B; padding-left: 21px; }
+        .review-card.rv-positive  { border-left: 3px solid #16a34a; padding-left: 21px; }
+        .review-card.rv-negative  { border-left: 3px solid #dc2626; padding-left: 21px; }
 
-        /* Review source badge */
-        .review-source-badge {
-            display: inline-flex; align-items: center; gap: 4px;
-            font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
-            padding: 2px 8px; border-radius: 10px; text-transform: uppercase;
-            flex-shrink: 0; align-self: flex-start; margin-top: 2px;
+        /* Card top row */
+        .rc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+        .rc-author { display: flex; align-items: center; gap: 12px; }
+        .rc-avatar {
+            width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 15px; font-weight: 700; color: #fff;
+            background: linear-gradient(135deg, #006553, #00A651);
+            box-shadow: 0 2px 8px -2px rgba(0,101,83,0.4);
         }
-        .review-source-badge.facebook { background: #EFF6FF; color: #1877F2; border: 1px solid #BFDBFE; }
-        .review-source-badge.google   { background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; }
+        .rc-avatar.fb-av { background: linear-gradient(135deg,#1877F2,#42A5F5); box-shadow: 0 2px 8px -2px rgba(24,119,242,0.4); }
+        .rc-name { font-size: 14px; font-weight: 700; color: #0f172a; }
+        .rc-meta { display: flex; align-items: center; gap: 7px; margin-top: 3px; flex-wrap: wrap; }
+        .rc-date { font-size: 12px; color: #94a3b8; }
+        .rc-src-badge {
+            font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+            padding: 2px 7px; border-radius: 10px;
+        }
+        .rc-src-badge.fb-b { background: #EFF6FF; color: #1877F2; border: 1px solid #BFDBFE; }
+        .rc-src-badge.g-b  { background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; }
+        .rc-rating-side { flex-shrink: 0; }
+        .rc-stars { font-size: 17px; color: #F59E0B; letter-spacing: 1px; }
+        .rc-stars.low { color: #EF4444; }
+        .rc-rec-pill {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 12px; font-weight: 700; padding: 5px 13px; border-radius: 20px;
+            white-space: nowrap;
+        }
+        .rc-rec-pill.pos-pill { background: #F0FDF4; color: #15803D; border: 1px solid #86EFAC; }
+        .rc-rec-pill.neg-pill { background: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; }
+
+        /* Review body text */
+        .rc-body { font-size: 14px; color: #334155; line-height: 1.65; }
+        .rc-body em { color: #94a3b8; }
+
+        /* Reply thread */
+        .rc-reply-wrap { margin-top: 14px; padding-left: 12px; border-left: 2px solid #e2e8f0; }
+        .rc-reply-box {
+            background: #f8fafc; border: 1px solid #e8edf3; border-radius: 12px;
+            padding: 14px 16px; border-left: 3px solid #006553;
+        }
+        .rc-reply-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .rc-reply-av {
+            width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+            background: #006553; display: flex; align-items: center; justify-content: center;
+            font-size: 8px; font-weight: 800; color: #fff; letter-spacing: -0.5px;
+        }
+        .rc-reply-byline { font-size: 12px; font-weight: 700; color: #006553; }
+        .rc-reply-dt { font-size: 11px; color: #94a3b8; }
+        .rc-reply-body { font-size: 13px; color: #475569; line-height: 1.6; }
+        .rc-no-reply { margin-top: 10px; font-size: 11px; color: #b0bec9; font-style: italic; }
 
         /* GBP pending inline notice */
         .reviews-gbp-pending-notice {
@@ -3744,15 +3807,9 @@
             </div>
         </div>
 
-        <!-- Summary panel (hidden until data loads) -->
-        <div class="reviews-summary" id="reviewsSummary" style="display:none;">
-            <div class="reviews-score-block">
-                <div class="reviews-score-number" id="reviewsAvgScore">--</div>
-                <div class="reviews-score-stars" id="reviewsAvgStars">☆☆☆☆☆</div>
-                <div class="reviews-score-count"><span id="reviewsTotalCount">--</span> reviews</div>
-            </div>
-            <div class="reviews-divider"></div>
-            <div class="reviews-breakdown" id="reviewsBreakdown"></div>
+        <!-- Summary panels (hidden until data loads) -->
+        <div id="reviewsSummary" style="display:none;">
+            <div class="rv-panels" id="rvPanels"></div>
         </div>
 
         <!-- Filter + sort bar (hidden until data loads) -->
@@ -8481,34 +8538,93 @@ async function renderInsightsPanel(data, previousData, force) {
         return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    // SVG donut ring: pct = 0-100, posColor = arc color, negColor = track color
+    function _rvDonutSvg(pct, posColor, negColor) {
+        var r = 38, cx = 48, cy = 48, sw = 10;
+        var circ = 2 * Math.PI * r;
+        var filled = (pct / 100) * circ;
+        var gap = circ - filled;
+        return '<svg viewBox="0 0 96 96" width="96" height="96">' +
+            '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + negColor + '" stroke-width="' + sw + '"/>' +
+            '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + posColor + '" stroke-width="' + sw + '"' +
+            ' stroke-dasharray="' + filled.toFixed(2) + ' ' + gap.toFixed(2) + '"' +
+            ' stroke-linecap="round" transform="rotate(-90 ' + cx + ' ' + cy + ')"' +
+            ' style="transition:stroke-dasharray 1s ease;"/>' +
+        '</svg>';
+    }
+
     function _reviewsRenderSummary(reviews) {
-        var total = reviews.length;
-        // Summary score based on Google reviews only (Facebook uses thumbs, not stars)
-        var googleReviews = reviews.filter(function(r) { return r.source !== 'facebook'; });
+        var panels = document.getElementById('rvPanels');
+        if (!panels) return;
         var fbReviews = reviews.filter(function(r) { return r.source === 'facebook'; });
-        var fbPos = fbReviews.filter(function(r) { return r.recommendationType === 'positive'; }).length;
-        var fbNeg = fbReviews.filter(function(r) { return r.recommendationType === 'negative'; }).length;
-        var scoreBase = googleReviews.length ? googleReviews : reviews;
-        var sum = scoreBase.reduce(function(a, r) { return a + (r.starRating || 0); }, 0);
-        var avg = scoreBase.length ? (sum / scoreBase.length) : 0;
-        var avgEl = document.getElementById('reviewsAvgScore');
-        var starsEl = document.getElementById('reviewsAvgStars');
-        var countEl = document.getElementById('reviewsTotalCount');
-        if (avgEl) avgEl.textContent = googleReviews.length ? avg.toFixed(1) : '--';
-        if (starsEl) starsEl.textContent = googleReviews.length ? _reviewsStarsDisplay(avg) : '';
-        if (countEl) countEl.textContent = total + (fbReviews.length ? ' (' + fbPos + ' 👍 · ' + fbNeg + ' 👎 FB)' : '');
-        var breakdown = document.getElementById('reviewsBreakdown');
-        if (!breakdown) return;
-        var counts = {5:0, 4:0, 3:0, 2:0, 1:0};
-        reviews.forEach(function(r) { if (counts[r.starRating] !== undefined) counts[r.starRating]++; });
-        breakdown.innerHTML = [5,4,3,2,1].map(function(s) {
-            var pct = total ? Math.round((counts[s] / total) * 100) : 0;
-            return '<div class="reviews-bar-row">' +
-                '<span class="reviews-bar-label">' + s + '★</span>' +
-                '<div class="reviews-bar-track"><div class="reviews-bar-fill" style="width:' + pct + '%"></div></div>' +
-                '<span class="reviews-bar-count">' + counts[s] + '</span>' +
-                '</div>';
-        }).join('');
+        var gReviews  = reviews.filter(function(r) { return r.source !== 'facebook'; });
+        var html = '';
+
+        // Facebook Recommendations Panel
+        if (fbReviews.length > 0) {
+            var fbPos = fbReviews.filter(function(r) { return r.recommendationType === 'positive'; }).length;
+            var fbNeg = fbReviews.filter(function(r) { return r.recommendationType === 'negative'; }).length;
+            var fbTotal = fbPos + fbNeg;
+            var fbPct = fbTotal > 0 ? Math.round((fbPos / fbTotal) * 100) : 0;
+            var fbPosPct = fbTotal > 0 ? ((fbPos / fbTotal) * 100).toFixed(1) : '0.0';
+            var fbNegPct = fbTotal > 0 ? ((fbNeg / fbTotal) * 100).toFixed(1) : '0.0';
+            var donut = _rvDonutSvg(fbPct, '#16a34a', '#fee2e2');
+            html += '<div class="rv-panel">' +
+                '<div class="rv-panel-head"><span class="rv-panel-icon fb-ic">f</span>Facebook Recommendations</div>' +
+                '<div class="rv-fb-body">' +
+                    '<div class="rv-fb-donut">' + donut +
+                        '<div class="rv-fb-donut-pct">' +
+                            '<div class="rv-fb-donut-num">' + fbPct + '%</div>' +
+                            '<div class="rv-fb-donut-lbl">Recommend</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="rv-fb-stats">' +
+                        '<div class="rv-fb-stat-row">' +
+                            '<div class="rv-fb-stat-icon">👍</div>' +
+                            '<div class="rv-fb-stat-detail">' +
+                                '<div class="rv-fb-stat-num pos">' + fbPos + '</div>' +
+                                '<div class="rv-fb-stat-label">Recommend MGE &nbsp;<span style="font-size:10px;color:#94a3b8;">(' + fbPosPct + '%)</span></div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<hr class="rv-fb-sep">' +
+                        '<div class="rv-fb-stat-row">' +
+                            '<div class="rv-fb-stat-icon">👎</div>' +
+                            '<div class="rv-fb-stat-detail">' +
+                                '<div class="rv-fb-stat-num neg">' + fbNeg + '</div>' +
+                                '<div class="rv-fb-stat-label">Don\'t Recommend &nbsp;<span style="font-size:10px;color:#94a3b8;">(' + fbNegPct + '%)</span></div>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }
+
+        // Google Rating Panel
+        if (gReviews.length > 0) {
+            var gTotal = gReviews.length;
+            var gAvg = gReviews.reduce(function(s,r){ return s+(r.starRating||0); },0) / gTotal;
+            var gCounts = {5:0,4:0,3:0,2:0,1:0};
+            gReviews.forEach(function(r) { if (gCounts[r.starRating] !== undefined) gCounts[r.starRating]++; });
+            var gBars = [5,4,3,2,1].map(function(s) {
+                var pct = gTotal > 0 ? ((gCounts[s]/gTotal)*100).toFixed(1) : 0;
+                return '<div class="rv-g-bar-row"><span class="rv-g-bar-lbl">' + s + '★</span>' +
+                    '<div class="rv-g-bar-track"><div class="rv-g-bar-fill" style="width:' + pct + '%"></div></div>' +
+                    '<span class="rv-g-bar-n">' + gCounts[s] + '</span></div>';
+            }).join('');
+            html += '<div class="rv-panel">' +
+                '<div class="rv-panel-head"><span class="rv-panel-icon g-ic">G</span>Google Rating</div>' +
+                '<div class="rv-g-body">' +
+                    '<div class="rv-g-score-wrap">' +
+                        '<div class="rv-g-score">' + gAvg.toFixed(1) + '</div>' +
+                        '<div class="rv-g-stars">' + _reviewsStarsDisplay(gAvg) + '</div>' +
+                        '<div class="rv-g-count">' + gTotal + ' reviews</div>' +
+                    '</div>' +
+                    '<div class="rv-g-bars">' + gBars + '</div>' +
+                '</div>' +
+            '</div>';
+        }
+
+        panels.innerHTML = html;
     }
 
     function _reviewsRenderCards(reviews) {
@@ -8518,55 +8634,80 @@ async function renderInsightsPanel(data, previousData, force) {
             grid.innerHTML = '<div class="reviews-empty"><div class="reviews-empty-icon">🔍</div><div class="reviews-empty-text">No reviews match this filter</div><div class="reviews-empty-sub">Try selecting a different filter above.</div></div>';
             return;
         }
-        grid.innerHTML = reviews.map(function(r) {
+        grid.innerHTML = reviews.map(function(r, idx) {
             var name = (r.reviewer && r.reviewer.displayName) || 'Anonymous';
-            var initials = name.split(' ').map(function(w){ return w[0] || ''; }).join('').substring(0,2).toUpperCase() || '?';
-            var rating = r.starRating || 0;
-            var stars = _reviewsStarsDisplay(rating);
-            var isLow = rating > 0 && rating <= 3;
-            var date = r.createTime ? new Date(r.createTime).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
-            var bodyHtml = r.comment ? _reviewsEscapeHtml(r.comment) : '<em style="color:#94a3b8;">No written review</em>';
+            var initials = name.split(' ').map(function(w){ return w[0]||''; }).join('').substring(0,2).toUpperCase() || '?';
             var isFacebook = r.source === 'facebook';
-            var isPositive = r.recommendationType === 'positive';
-            var replyHtml = isFacebook ? ''
-                : (r.reviewReply && r.reviewReply.comment)
-                    ? '<div class="review-reply-section"><div class="review-reply-label">MGE Response' +
-                      (r.reviewReply.updateTime ? ' &middot; ' + new Date(r.reviewReply.updateTime).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '') +
-                      '</div><div class="review-reply-text">' + _reviewsEscapeHtml(r.reviewReply.comment) + '</div></div>'
-                    : '<div class="review-no-reply">⚠ Awaiting Response</div>';
-            var needsReplyClass = (!isFacebook && !r.reviewReply) ? ' needs-reply' : '';
-            var sourceBadge = isFacebook
-                ? '<span class="review-source-badge facebook">📘 Facebook</span>'
-                : '<span class="review-source-badge google">G Google</span>';
-            var avatarStyle = isFacebook ? 'background:linear-gradient(135deg,#1877F2,#42A5F5);' : '';
-            // Facebook uses recommendations (👍/👎), not stars
-            var ratingDisplay = isFacebook
-                ? (r.recommendationType === 'positive'
-                    ? '<span style="font-size:18px;" title="Recommends MGE">👍</span><span style="font-size:13px;color:#15803D;font-weight:600;margin-left:4px;">Recommends</span>'
-                    : r.recommendationType === 'negative'
-                    ? '<span style="font-size:18px;" title="Does not recommend MGE">👎</span><span style="font-size:13px;color:#DC2626;font-weight:600;margin-left:4px;">Doesn\'t Recommend</span>'
-                    : '')
-                : '<div class="review-stars-display' + (isLow ? ' low' : '') + '">' + stars + '</div>';
+            var rating = r.starRating || 0;
+            var isLow = rating > 0 && rating <= 3;
+            var date = r.createTime ? new Date(r.createTime).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+
+            // Sentiment-based left border class
+            var sentClass = '';
+            if (isFacebook) {
+                sentClass = r.recommendationType === 'positive' ? ' rv-positive'
+                          : r.recommendationType === 'negative' ? ' rv-negative' : '';
+            } else {
+                if (!r.reviewReply) sentClass = ' needs-reply';
+            }
+
+            // Rating / recommendation pill
+            var ratingHtml;
+            if (isFacebook) {
+                if (r.recommendationType === 'positive') {
+                    ratingHtml = '<div class="rc-rec-pill pos-pill">👍 Recommends</div>';
+                } else if (r.recommendationType === 'negative') {
+                    ratingHtml = '<div class="rc-rec-pill neg-pill">👎 Doesn\'t Recommend</div>';
+                } else { ratingHtml = ''; }
+            } else {
+                ratingHtml = '<div class="rc-stars' + (isLow ? ' low' : '') + '">' + _reviewsStarsDisplay(rating) + '</div>';
+            }
+
+            // Review body text
             var bodyHtml = r.comment
                 ? _reviewsEscapeHtml(r.comment)
-                : (isFacebook
-                    ? '<em style="color:#94a3b8;">No written review — recommendation only</em>'
-                    : '<em style="color:#94a3b8;">No written review</em>');
-            return '<div class="review-card' + needsReplyClass + '">' +
-                '<div class="review-card-header">' +
-                  '<div class="review-author">' +
-                    '<div class="review-avatar" style="' + avatarStyle + '">' + initials + '</div>' +
-                    '<div><div class="review-author-name">' + _reviewsEscapeHtml(name) + '</div>' +
-                    '<div class="review-date">' + date + '</div></div>' +
-                  '</div>' +
-                  '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">' +
-                    '<div style="display:flex;align-items:center;">' + ratingDisplay + '</div>' +
-                    sourceBadge +
-                  '</div>' +
-                '</div>' +
-                '<div class="review-body">' + bodyHtml + '</div>' +
-                replyHtml +
+                : (isFacebook ? '<em>No written review — recommendation only</em>' : '<em>No written review</em>');
+
+            // Reply thread (works for both FB and Google)
+            var replyHtml = '';
+            if (r.reviewReply && r.reviewReply.comment) {
+                var replyDate = r.reviewReply.updateTime
+                    ? new Date(r.reviewReply.updateTime).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+                    : '';
+                replyHtml = '<div class="rc-reply-wrap">' +
+                    '<div class="rc-reply-box">' +
+                        '<div class="rc-reply-head">' +
+                            '<div class="rc-reply-av">MGE</div>' +
+                            '<div><span class="rc-reply-byline">Madison Gas and Electric</span>' +
+                            (replyDate ? '<span class="rc-reply-dt"> &middot; ' + replyDate + '</span>' : '') +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="rc-reply-body">' + _reviewsEscapeHtml(r.reviewReply.comment) + '</div>' +
+                    '</div>' +
                 '</div>';
+            } else if (!isFacebook) {
+                replyHtml = '<div class="rc-no-reply">No response yet</div>';
+            }
+
+            var srcBadge = isFacebook
+                ? '<span class="rc-src-badge fb-b">FB</span>'
+                : '<span class="rc-src-badge g-b">Google</span>';
+            var avClass = isFacebook ? ' fb-av' : '';
+            var animDelay = Math.min(idx * 40, 320);
+
+            return '<div class="review-card' + sentClass + '" style="animation-delay:' + animDelay + 'ms;">' +
+                '<div class="rc-top">' +
+                    '<div class="rc-author">' +
+                        '<div class="rc-avatar' + avClass + '">' + initials + '</div>' +
+                        '<div><div class="rc-name">' + _reviewsEscapeHtml(name) + '</div>' +
+                        '<div class="rc-meta"><span class="rc-date">' + date + '</span>' + srcBadge + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="rc-rating-side">' + ratingHtml + '</div>' +
+                '</div>' +
+                '<div class="rc-body">' + bodyHtml + '</div>' +
+                replyHtml +
+            '</div>';
         }).join('');
     }
 
@@ -8655,7 +8796,7 @@ async function renderInsightsPanel(data, previousData, force) {
 
             _reviewsState.data = allReviews;
             _reviewsRenderSummary(allReviews);
-            if (summary) { summary.style.display = 'flex'; }
+            if (summary) { summary.style.display = 'block'; }
             if (filterBar) { filterBar.style.display = 'flex'; }
             if (gbpPending && gbpNotice) { gbpNotice.style.display = 'block'; }
             var refreshEl = document.getElementById('reviewsLastRefreshed');
