@@ -2909,8 +2909,21 @@ app.get('/api/fb-reviews', async (req, res) => {
           reviewer: { displayName: r.reviewer?.name || 'Facebook User' },
           comment: r.review_text || '',
           reviewReply: (() => {
-            const pageComments = (r.comments?.data || []).filter(c => c.from?.id === String(cfg.pageId));
-            const reply = pageComments.sort((a, b) => new Date(b.created_time) - new Date(a.created_time))[0];
+            const comments = r.comments?.data || [];
+            if (!comments.length) return null;
+            // Log for debugging — helps diagnose 'from' field availability
+            console.log(`[FB Reviews] Review ${r.id} — ${comments.length} comment(s). from IDs: [${comments.map(c => c.from?.id || 'null').join(', ')}]`);
+            // 1. Preferred: comment explicitly from the Page
+            let reply = comments
+              .filter(c => c.from?.id === String(cfg.pageId))
+              .sort((a, b) => new Date(b.created_time) - new Date(a.created_time))[0];
+            // 2. Fallback: Graph API often omits 'from' on Page's own comments due to privacy rules.
+            //    A comment with no 'from' on a ratings object is typically the Page's reply.
+            if (!reply) {
+              reply = comments
+                .filter(c => !c.from?.id)
+                .sort((a, b) => new Date(b.created_time) - new Date(a.created_time))[0];
+            }
             return reply ? { comment: reply.message, updateTime: reply.created_time } : null;
           })(),
           source: 'facebook'
@@ -2933,6 +2946,27 @@ app.get('/api/fb-reviews', async (req, res) => {
     console.error('[FB Reviews] Error:', err.message);
     res.status(500).json({ error: err.message, reviews: [] });
   }
+});
+
+// Debug endpoint — shows raw FB ratings including comment 'from' data (bypasses cache)
+app.get('/api/fb-reviews-debug', async (req, res) => {
+  const cfg = config.facebook;
+  if (!cfg?.pageAccessToken || !cfg?.pageId) return res.json({ error: 'Not configured' });
+  try {
+    const fields = 'id,created_time,recommendation_type,review_text,reviewer,comments.limit(10){id,message,created_time,from{name,id}}';
+    const url = `https://graph.facebook.com/v19.0/${cfg.pageId}/ratings?fields=${fields}&limit=10&access_token=${cfg.pageAccessToken}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    // Strip access token from any paging URLs before returning
+    if (data.paging) { delete data.paging.next; delete data.paging.previous; }
+    res.json({ pageId: cfg.pageId, reviews: (data.data || []).map(r => ({
+      id: r.id,
+      reviewer: r.reviewer?.name,
+      recommendation_type: r.recommendation_type,
+      review_text: r.review_text?.substring(0, 80),
+      comments: r.comments?.data || []
+    }))});
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ============================================================
