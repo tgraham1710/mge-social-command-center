@@ -2888,7 +2888,7 @@ app.get('/api/fb-reviews', async (req, res) => {
 
   try {
     const rawReviews = [];
-    const fields = 'created_time,has_rating,has_review,rating,recommendation_type,review_text,reviewer';
+    const fields = 'id,created_time,has_rating,has_review,rating,recommendation_type,review_text,reviewer,comments.limit(10){message,created_time,from{name,id}}';
     let url = `https://graph.facebook.com/v19.0/${cfg.pageId}/ratings?fields=${fields}&limit=100&access_token=${cfg.pageAccessToken}`;
 
     // Paginate up to 3 pages (max 300 reviews)
@@ -2908,7 +2908,11 @@ app.get('/api/fb-reviews', async (req, res) => {
           recommendationType: r.recommendation_type || null, // 'positive' | 'negative'
           reviewer: { displayName: r.reviewer?.name || 'Facebook User' },
           comment: r.review_text || '',
-          reviewReply: null,
+          reviewReply: (() => {
+            const pageComments = (r.comments?.data || []).filter(c => c.from?.id === String(cfg.pageId));
+            const reply = pageComments.sort((a, b) => new Date(b.created_time) - new Date(a.created_time))[0];
+            return reply ? { comment: reply.message, updateTime: reply.created_time } : null;
+          })(),
           source: 'facebook'
         });
       });
