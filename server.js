@@ -951,16 +951,20 @@ async function _gbpGetLocationName(accessToken) {
 
 // TEMPORARY DEBUG — remove after location ID is found
 app.get('/api/gbp-debug', async (req, res) => {
+  const safeJson = async (resp) => {
+    const text = await resp.text();
+    try { return JSON.parse(text); } catch { return { _raw: text }; }
+  };
   try {
     const token = await _gbpGetAccessToken();
-    const results = {};
+    const results = { tokenOk: true };
 
     // 1. List all accounts
     const acctResp = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
       headers: { Authorization: 'Bearer ' + token }
     });
     results.accountsStatus = acctResp.status;
-    results.accounts = await acctResp.json();
+    results.accounts = await safeJson(acctResp);
 
     // 2. Try listing locations under each account
     const accounts = results.accounts?.accounts || [];
@@ -972,7 +976,7 @@ app.get('/api/gbp-debug', async (req, res) => {
       );
       results.locationsByAccount[acct.name] = {
         status: locResp.status,
-        data: await locResp.json()
+        data: await safeJson(locResp)
       };
     }
 
@@ -983,11 +987,19 @@ app.get('/api/gbp-debug', async (req, res) => {
       body: JSON.stringify({ query: 'Madison Gas and Electric Madison WI' })
     });
     results.searchStatus = searchResp.status;
-    results.searchResults = await searchResp.json();
+    results.searchResults = await safeJson(searchResp);
+
+    // 4. Also try the personal account directly with no readMask
+    const directResp = await fetch(
+      'https://mybusinessinformation.googleapis.com/v1/accounts/114745114699398363108/locations',
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    results.directLocationsStatus = directResp.status;
+    results.directLocations = await safeJson(directResp);
 
     res.json(results);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, stack: err.stack?.split('\n').slice(0,5) });
   }
 });
 
