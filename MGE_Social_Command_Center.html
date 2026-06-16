@@ -3694,11 +3694,11 @@
             <div class="mentions-filter-row">
                 <span class="mentions-filter-label">Brand</span>
                 <div class="mentions-source-chips" id="mentionsBrandChips">
-                    <button class="mentions-chip active" data-brand="all" onclick="filterMentionsBrand('all', this)">All</button>
+                    <button class="mentions-chip" data-brand="all" onclick="filterMentionsBrand('all', this)">All</button>
                     <button class="mentions-chip brand-mge active" data-brand="mge" onclick="filterMentionsBrand('mge', this)"><span class="chip-dot-sm" style="background:#006553"></span>MGE</button>
-                    <button class="mentions-chip brand-alliant active" data-brand="alliant" onclick="filterMentionsBrand('alliant', this)"><span class="chip-dot-sm" style="background:#0A3F67"></span>Alliant Energy</button>
-                    <button class="mentions-chip brand-we_energies active" data-brand="we_energies" onclick="filterMentionsBrand('we_energies', this)"><span class="chip-dot-sm" style="background:#DA291C"></span>We Energies</button>
-                    <button class="mentions-chip brand-topical active" data-brand="topical" onclick="filterMentionsBrand('topical', this)"><span class="chip-dot-sm" style="background:#7C3AED"></span>Topical (WI)</button>
+                    <button class="mentions-chip brand-alliant" data-brand="alliant" onclick="filterMentionsBrand('alliant', this)"><span class="chip-dot-sm" style="background:#0A3F67"></span>Alliant Energy</button>
+                    <button class="mentions-chip brand-we_energies" data-brand="we_energies" onclick="filterMentionsBrand('we_energies', this)"><span class="chip-dot-sm" style="background:#DA291C"></span>We Energies</button>
+                    <button class="mentions-chip brand-topical" data-brand="topical" onclick="filterMentionsBrand('topical', this)"><span class="chip-dot-sm" style="background:#7C3AED"></span>Topical (WI)</button>
                 </div>
             </div>
             <div class="mentions-filter-row">
@@ -3835,7 +3835,7 @@
 
         <!-- Inline notice if GBP still pending but FB reviews loaded -->
         <div class="reviews-gbp-pending-notice" id="reviewsGbpPendingNotice">
-            ⏳ <strong>Google reviews coming soon.</strong> GBP API access is pending Google's approval (Case ID 5-5301000040844, submitted May 28, 2026). Facebook reviews are shown in the meantime.
+            ⏳ <strong>Google reviews coming soon.</strong> GBP API access is pending Google's approval (Case ID 1-2552000041301, submitted June 8, 2026). Facebook reviews are shown in the meantime.
         </div>
 
         <!-- Cards grid -->
@@ -3845,7 +3845,7 @@
                 <div class="reviews-api-pending-icon">⏳</div>
                 <div class="reviews-api-pending-title">Pending per Google's Approval</div>
                 <div class="reviews-api-pending-text">
-                    Google Business Profile API access has been submitted and is pending Google's approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access and credentials are configured — typically 7–10 business days.
+                    Google Business Profile API access has been submitted and is pending Google's approval (Case ID 1-2552000041301, submitted June 8, 2026). Reviews will appear here automatically once Google approves access and credentials are configured — typically 7–10 business days.
                 </div>
             </div>
         </div>
@@ -8499,7 +8499,7 @@ async function renderInsightsPanel(data, previousData, force) {
     };
     let _mentionsState = {
         source: 'all',
-        brands: new Set(ALL_BRANDS), // multi-toggle
+        brands: new Set(['mge']), // default to MGE-only on load
         sort: 'newest',
         keyword: '',
         days: 30, // default 30-day window
@@ -8789,7 +8789,7 @@ async function renderInsightsPanel(data, previousData, force) {
                 grid.innerHTML = '<div class="reviews-api-pending">' +
                     '<div class="reviews-api-pending-icon">⏳</div>' +
                     '<div class="reviews-api-pending-title">Pending per Google\'s Approval</div>' +
-                    '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
+                    '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 1-2552000041301, submitted June 8, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
                     '</div>';
                 return;
             }
@@ -8806,7 +8806,7 @@ async function renderInsightsPanel(data, previousData, force) {
             grid.innerHTML = '<div class="reviews-api-pending">' +
                 '<div class="reviews-api-pending-icon">⏳</div>' +
                 '<div class="reviews-api-pending-title">Pending per Google\'s Approval</div>' +
-                '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 5-5301000040844, submitted May 28, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
+                '<div class="reviews-api-pending-text">Google Business Profile API access has been submitted and is pending Google\'s approval (Case ID 1-2552000041301, submitted June 8, 2026). Reviews will appear here automatically once Google approves access — typically 7–10 business days.</div>' +
                 '</div>';
         });
     };
@@ -9866,221 +9866,6 @@ async function renderInsightsPanel(data, previousData, force) {
             if (cached && cached.weekId) checkNewPill(cached.weekId);
         })
         .catch(function() {});
-})();
-</script>
-
-
-<!-- ===== REVIEWS TAB VISUAL UPGRADE ===== -->
-<style id="reviewsEnhancedStyles">
-/* Platform panels */
-.rv-panels { gap: 20px; }
-
-.rv-panel {
-    border: none !important;
-    box-shadow: 0 4px 28px -6px rgba(15,23,42,0.13), 0 0 0 1px rgba(15,23,42,0.07) !important;
-    overflow: hidden;
-    position: relative;
-}
-/* Facebook panel — blue tint */
-.rv-panel:first-child {
-    background: linear-gradient(150deg, #eef5ff 0%, #ffffff 50%) !important;
-    border-top: 3px solid #1877F2 !important;
-}
-/* Google panel — warm tint + rainbow top bar */
-.rv-panel:last-child {
-    background: linear-gradient(150deg, #fffbf0 0%, #ffffff 50%) !important;
-}
-.rv-panel:last-child::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    background: linear-gradient(to right, #4285F4, #34A853, #FBBC04, #EA4335);
-    border-radius: 16px 16px 0 0;
-}
-
-/* Panel headers */
-.rv-panel-head {
-    font-size: 11.5px !important;
-    letter-spacing: 0.08em !important;
-    color: #334155 !important;
-    border-bottom: 1px solid rgba(0,0,0,0.06) !important;
-    padding-bottom: 16px !important;
-    margin-bottom: 20px !important;
-}
-.rv-panel-icon {
-    width: 28px !important; height: 28px !important;
-    font-size: 13px !important;
-    box-shadow: 0 2px 8px -2px rgba(0,0,0,0.25) !important;
-}
-
-/* Google score — gradient text */
-.rv-g-score {
-    font-size: 62px !important;
-    background: linear-gradient(135deg, #1B2559 0%, #475569 100%) !important;
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-    background-clip: text !important;
-    letter-spacing: -2px !important;
-}
-.rv-g-stars  { font-size: 22px !important; letter-spacing: 2px !important; }
-.rv-g-count  { font-size: 13px !important; font-weight: 600 !important; }
-.rv-g-bar-fill  { background: linear-gradient(to right, #F59E0B, #FBBF24) !important; }
-.rv-g-bar-track { height: 8px !important; border-radius: 6px !important; }
-
-/* FB stats */
-.rv-fb-stat-num  { font-size: 32px !important; }
-.rv-fb-donut-num { font-size: 24px !important; font-weight: 900 !important; }
-
-/* Review grid */
-.reviews-grid {
-    border: none !important;
-    box-shadow: 0 4px 28px -6px rgba(15,23,42,0.11), 0 0 0 1px rgba(15,23,42,0.07) !important;
-    border-radius: 20px !important;
-}
-.review-card {
-    padding: 22px 28px !important;
-    border-bottom: 1px solid #f1f4fa !important;
-    transition: background 0.2s ease, transform 0.15s ease !important;
-}
-.review-card:hover {
-    background: linear-gradient(to right, #f7f9ff, #ffffff) !important;
-    transform: translateX(3px) !important;
-}
-.review-card.rv-positive {
-    background: linear-gradient(to right, rgba(22,163,74,0.05) 0%, transparent 45%) !important;
-    border-left: 4px solid #16a34a !important; padding-left: 20px !important;
-}
-.review-card.rv-negative {
-    background: linear-gradient(to right, rgba(220,38,38,0.05) 0%, transparent 45%) !important;
-    border-left: 4px solid #dc2626 !important; padding-left: 20px !important;
-}
-.review-card.needs-reply {
-    background: linear-gradient(to right, rgba(245,158,11,0.05) 0%, transparent 45%) !important;
-    border-left: 4px solid #F59E0B !important; padding-left: 20px !important;
-}
-
-/* Avatars — ring effect */
-.rc-avatar {
-    width: 46px !important; height: 46px !important; font-size: 16px !important;
-    box-shadow: 0 0 0 3px #fff, 0 0 0 5px rgba(0,101,83,0.18) !important;
-}
-.rc-avatar.fb-av {
-    box-shadow: 0 0 0 3px #fff, 0 0 0 5px rgba(24,119,242,0.18) !important;
-}
-
-/* Review text */
-.rc-body { font-size: 14px !important; line-height: 1.72 !important; color: #1e293b !important; }
-.rc-name { font-size: 15px !important; font-weight: 800 !important; }
-
-/* Source badges — solid color */
-.rc-src-badge.fb-b {
-    background: #1877F2 !important; color: #fff !important;
-    border: none !important; font-weight: 800 !important; padding: 3px 9px !important;
-}
-.rc-src-badge.g-b {
-    background: #34A853 !important; color: #fff !important;
-    border: none !important; font-weight: 800 !important; padding: 3px 9px !important;
-}
-.rc-date { font-size: 12.5px !important; color: #475569 !important; font-weight: 600 !important; }
-
-/* Stars */
-.rc-stars { font-size: 18px !important; letter-spacing: 2px !important; }
-
-/* Rec pills */
-.rc-rec-pill.pos-pill {
-    background: #DCFCE7 !important; color: #15803D !important;
-    border-color: #86EFAC !important; font-size: 12.5px !important;
-}
-.rc-rec-pill.neg-pill {
-    background: #FEE2E2 !important; color: #DC2626 !important;
-    border-color: #FCA5A5 !important; font-size: 12.5px !important;
-}
-
-/* Filter chips */
-.reviews-filter-chip.active {
-    background: linear-gradient(135deg, #1B2559, #2d4078) !important;
-    box-shadow: 0 2px 10px -2px rgba(27,37,89,0.35) !important;
-}
-.reviews-filter-chip { font-size: 12.5px !important; padding: 6px 16px !important; }
-
-/* Reply box */
-.rc-reply-box {
-    background: linear-gradient(135deg, #f0f9f6, #f8fafc) !important;
-    border: 1px solid #c7e8df !important; border-left: 3px solid #006553 !important;
-}
-
-/* ── Recency badges ───────────────────────────────────── */
-.rc-new-badge {
-    display: inline-flex; align-items: center; gap: 4px;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    color: #fff; font-size: 10px; font-weight: 800;
-    padding: 3px 8px; border-radius: 20px;
-    letter-spacing: 0.05em; text-transform: uppercase;
-    box-shadow: 0 2px 8px -2px rgba(99,102,241,0.45);
-    animation: rcNewPulse 2.5s ease-in-out infinite;
-    vertical-align: middle;
-}
-@keyframes rcNewPulse {
-    0%, 100% { box-shadow: 0 2px 8px -2px rgba(99,102,241,0.45); }
-    50%       { box-shadow: 0 2px 14px -2px rgba(99,102,241,0.7); }
-}
-.rc-stale-badge {
-    display: inline-flex; align-items: center; gap: 4px;
-    background: #fef3c7; color: #92400e;
-    border: 1px solid #fcd34d;
-    font-size: 10px; font-weight: 700;
-    padding: 3px 8px; border-radius: 20px;
-    letter-spacing: 0.04em;
-    vertical-align: middle;
-}
-</style>
-
-<script id="reviewsEnhancedScript">
-(function () {
-    // Apply recency badges to review cards after they render
-    function applyRecencyBadges() {
-        const now = new Date();
-        document.querySelectorAll('.review-card').forEach(card => {
-            if (card.dataset.badged) return; // already processed
-            const dateEl = card.querySelector('.rc-date');
-            if (!dateEl) return;
-            const parsed = new Date(dateEl.textContent.trim());
-            if (isNaN(parsed)) return;
-            const diffDays = (now - parsed) / (1000 * 60 * 60 * 24);
-            const meta = card.querySelector('.rc-meta');
-            if (!meta) return;
-            // Remove any stale badges from prior calls
-            meta.querySelectorAll('.rc-new-badge, .rc-stale-badge').forEach(b => b.remove());
-            if (diffDays <= 3) {
-                const badge = document.createElement('span');
-                badge.className = 'rc-new-badge';
-                badge.innerHTML = '&#10022; NEW';
-                meta.appendChild(badge);
-            } else if (diffDays >= 7) {
-                const badge = document.createElement('span');
-                badge.className = 'rc-stale-badge';
-                badge.textContent = '🕐 ' + Math.round(diffDays) + 'd ago';
-                meta.appendChild(badge);
-            }
-            card.dataset.badged = '1';
-        });
-    }
-
-    // Run once on DOMContentLoaded and again whenever the reviews list changes
-    document.addEventListener('DOMContentLoaded', () => {
-        applyRecencyBadges();
-        const grid = document.getElementById('reviewsList') || document.querySelector('.reviews-grid');
-        if (grid) {
-            new MutationObserver(applyRecencyBadges).observe(grid, { childList: true, subtree: true });
-        }
-        // Fallback polling for first few seconds in case grid isn't mounted yet
-        let tries = 0;
-        const poll = setInterval(() => {
-            applyRecencyBadges();
-            if (++tries >= 10) clearInterval(poll);
-        }, 800);
-    });
 })();
 </script>
 
