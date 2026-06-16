@@ -106,7 +106,7 @@ const PULSE_THEMES = [
     label: 'Data Centers',
     color: '#7c3aed',
     keywords: ['data center', 'data centers', 'AI data center', 'hyperscaler', 'data center power'],
-    subreddits: ['energy', 'datacenter', 'sysadmin', 'wisconsin', 'technology']
+    subreddits: ['energy', 'datacenter', 'sysadmin', 'technology', 'artificial']
   },
   {
     id: 'renewable_energy',
@@ -134,7 +134,7 @@ const PULSE_THEMES = [
     label: 'Winter Heating Costs',
     color: '#3b82f6',
     keywords: ['heating bill', 'winter heating', 'natural gas heating', 'furnace cost', 'gas bill winter', 'cold weather bill'],
-    subreddits: ['Frugal', 'wisconsin', 'minnesota', 'HomeImprovement', 'hvacadvice', 'heatpumps']
+    subreddits: ['Frugal', 'HomeImprovement', 'hvacadvice', 'heatpumps', 'personalfinance', 'homeowners']
   },
 ];
 
@@ -262,15 +262,18 @@ async function searchRedditPosts(theme, timeWindow) {
 }
 
 async function fetchRedditPostsForTheme(theme) {
-  // Browse top posts directly from the theme's curated subreddits (1–3 months).
-  // This is more reliable than the search endpoint, which is blocked from
-  // server/datacenter IPs. The subreddit list is the relevance gate.
+  // Browse both top (highest engagement, past month) AND hot (currently trending,
+  // all time ranges) from curated subreddits. Mixing sorts gives us a balanced
+  // cross-section: viral/established posts alongside current everyday discussion.
   const posts = [];
   const seen = new Set();
 
-  async function browseSubreddit(sub, timeWindow) {
-    const url = 'https://www.reddit.com/r/' + sub + '/top.json?t=' + timeWindow + '&limit=15';
-    const data = await fetchRedditWithRetry(url, theme.id + '-top-' + sub + '-' + timeWindow);
+  async function browseSubreddit(sub, sort, timeWindow) {
+    const url = sort === 'hot'
+      ? 'https://www.reddit.com/r/' + sub + '/hot.json?limit=15'
+      : 'https://www.reddit.com/r/' + sub + '/top.json?t=' + timeWindow + '&limit=15';
+    const label = theme.id + '-' + sort + '-' + sub + (timeWindow ? '-' + timeWindow : '');
+    const data = await fetchRedditWithRetry(url, label);
     await delay(REDDIT_DELAY_MS);
     const children = (data && data.data && data.data.children) || [];
     for (const c of children) {
@@ -294,16 +297,18 @@ async function fetchRedditPostsForTheme(theme) {
     }
   }
 
-  // Primary: top 3 subreddits, past month
+  // Primary pass: top posts (past month) + hot posts from first 3 subreddits.
+  // top = highest-voted content; hot = what people are actively discussing right now.
   for (const sub of theme.subreddits.slice(0, 3)) {
-    await browseSubreddit(sub, 'month');
-    if (posts.length >= 20) break;
+    await browseSubreddit(sub, 'top', 'month');
+    await browseSubreddit(sub, 'hot', null);
+    if (posts.length >= 24) break;
   }
 
-  // Fallback: if still thin, widen to 3 months via the remaining subreddits
+  // Fallback: if still thin, widen to year window across remaining subreddits
   if (posts.length < 5) {
     for (const sub of theme.subreddits) {
-      await browseSubreddit(sub, 'year');
+      await browseSubreddit(sub, 'top', 'year');
       if (posts.length >= 15) break;
     }
   }
@@ -426,15 +431,16 @@ const PULSE_SYSTEM_PROMPT =
   'You read recent public Reddit commentary — both the original posts AND the top user replies — ' +
   'and produce a tight, neutral, editorial summary for the marketing and communications team. Hard rules: ' +
   '(1) Ground every claim in the actual posts and comments provided — do not invent quotes or stats. ' +
-  '(2) Lean heavily on the COMMENTS (user replies) for sentiment and recurring concerns, not just the post titles. ' +
-  '(3) Sentiment values: "positive" | "mixed" | "negative" | "low_signal" (use low_signal if fewer than 4 substantive posts). ' +
-  '(4) Themes are 3-5 short noun-phrases describing what users are actually saying or asking about. ' +
-  '(5) Summary is 2-3 sentences in plain professional tone — no marketing buzzwords, no hedging filler. ' +
-  '(6) Notable quote: pick a real comment (preferred) or post snippet that captures a representative sentiment. ' +
-  '(7) "likes" = 3-5 SHORT keywords/buzzwords (1-3 words each) capturing what users PRAISE, ENJOY, or are EXCITED about in this theme. ' +
-  '(8) "pain_points" = 3-5 SHORT keywords/buzzwords (1-3 words each) capturing what users COMPLAIN about, FEAR, or find FRUSTRATING. ' +
-  '(9) "actionable_insight" = ONE concrete, specific sentence the MGE marketing team could act on next week — a messaging angle, FAQ topic, content idea, or framing pivot. Tied to what users actually said. NO platitudes ("engage authentically"). Example good: "Lead with rebate dollar amounts up front rather than payback periods — multiple commenters cited sticker-shock fatigue." ' +
-  '(10) Output strict JSON only — no preamble, no markdown.';
+  '(2) Lean heavily on the COMMENTS (user replies) for sentiment and recurring topics, not just the post titles. ' +
+  '(3) Capture the FULL SPECTRUM of how people talk about this topic — positive enthusiasm, curiosity, neutral questions, and negative concerns alike. Do NOT over-index on complaints or on praise; reflect the actual balance of the conversation as it appears in the data. ' +
+  '(4) Sentiment values: "positive" | "mixed" | "negative" | "low_signal" (use low_signal if fewer than 4 substantive posts). ' +
+  '(5) Themes are 3-5 short noun-phrases describing what people are genuinely talking about — not just problems, but also wins, questions, tips, excitement, debates. ' +
+  '(6) Summary is 2-3 sentences in plain professional tone — no marketing buzzwords, no hedging filler. Reflect the true range of perspectives. ' +
+  '(7) Notable quote: pick a real comment (preferred) or post snippet that best captures the overall tone — not necessarily the most extreme view. ' +
+  '(8) "likes" = 3-5 SHORT keywords/buzzwords (1-3 words each) capturing what users PRAISE, ENJOY, or are EXCITED about in this theme. ' +
+  '(9) "pain_points" = 3-5 SHORT keywords/buzzwords (1-3 words each) capturing what users COMPLAIN about, FEAR, or find FRUSTRATING. ' +
+  '(10) "actionable_insight" = ONE concrete, specific sentence the MGE marketing team could act on next week — a messaging angle, FAQ topic, content idea, or framing pivot. Tied to what users actually said. NO platitudes ("engage authentically"). Example good: "Lead with rebate dollar amounts up front rather than payback periods — multiple commenters cited sticker-shock fatigue." ' +
+  '(11) Output strict JSON only — no preamble, no markdown.';
 
 function buildThemePrompt(theme, posts) {
   const top = posts.slice(0, 8);
