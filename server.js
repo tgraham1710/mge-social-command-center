@@ -944,7 +944,12 @@ async function _gbpGetLocationName(accessToken) {
   const data = await resp.json();
   const locs = data.locations || [];
   if (!locs.length) throw new Error('No GBP locations found under ' + accountName);
-  _gbpLocationName = locs[0].name; // e.g. "locations/123456789"
+  const locName = locs[0].name; // e.g. "locations/123456789"
+  // Reviews API needs full path: accounts/{id}/locations/{id}
+  // Business Information API returns just "locations/{id}" without account prefix
+  _gbpLocationName = locName.startsWith('accounts/')
+    ? locName
+    : `${accountName}/${locName}`;
   console.log('[GBP] Auto-discovered location:', _gbpLocationName);
   return _gbpLocationName;
 }
