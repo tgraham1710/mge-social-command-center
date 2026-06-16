@@ -973,7 +973,7 @@ app.get('/api/reviews', async (req, res) => {
     let pageToken  = null;
     let page       = 0;
     do {
-      const url = new URL(`https://mybusinessreviews.googleapis.com/v1/${location}/reviews`);
+      const url = new URL(`https://mybusiness.googleapis.com/v4/${location}/reviews`);
       url.searchParams.set('pageSize', '50');
       if (pageToken) url.searchParams.set('pageToken', pageToken);
       const r = await fetch(url.toString(), { headers: { Authorization: 'Bearer ' + token } });
