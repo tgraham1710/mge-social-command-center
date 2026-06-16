@@ -650,20 +650,11 @@ async function generatePulse() {
 
   for (const theme of PULSE_THEMES) {
     try {
-      // 1. Reddit posts (subreddit-restricted, top-posts browsing)
+      // 1. Reddit posts (subreddit-restricted, top+hot browsing)
       const redditPosts = await fetchRedditPostsForTheme(theme);
 
-      // 1b. HackerNews fallback — fires when Reddit is IP-blocked (returns 0 posts).
-      //     HN Algolia is credential-free and not blocked from Render's datacenter IPs.
-      //     When REDDIT_CLIENT_ID/SECRET are added to Render later, Reddit becomes primary again.
-      let hnPosts = [];
-      if (redditPosts.length === 0) {
-        console.log(' [PULSE] Reddit returned 0 posts for ' + theme.label + ' — falling back to HackerNews');
-        hnPosts = await fetchHackerNewsPostsForTheme(theme);
-      }
-
-      // 2. Top 8 by combined engagement (Reddit preferred over HN when both present)
-      const allPosts = [...redditPosts, ...hnPosts]
+      // 2. Top 8 by combined engagement
+      const allPosts = [...redditPosts]
         .sort((a, b) => (b.score + b.comments) - (a.score + a.comments));
       const top8 = allPosts.slice(0, 8);
 
@@ -715,7 +706,7 @@ async function generatePulse() {
         color: theme.color,
         postCount: allPosts.length,
         redditCount: redditPosts.length,
-        hnCount: hnPosts.length,
+        hnCount: 0,
         blueskyCount: 0,
         commentsAnalyzed: top8.reduce((acc, p) => acc + ((p.topComments || []).length), 0),
         sentiment: ai.sentiment,
@@ -735,7 +726,7 @@ async function generatePulse() {
       console.warn(' [PULSE] Theme ' + theme.id + ' failed:', e.message);
       themes.push({
         id: theme.id, label: theme.label, color: theme.color,
-        postCount: 0, redditCount: 0, blueskyCount: 0, commentsAnalyzed: 0,
+        postCount: 0, redditCount: 0, hnCount: 0, blueskyCount: 0, commentsAnalyzed: 0,
         sentiment: 'low_signal', summary: 'Generation failed: ' + e.message,
         keyThemes: [], notableQuote: '', likes: [], painPoints: [],
         actionableInsight: '', competitorMentions: [],
