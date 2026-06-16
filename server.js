@@ -949,6 +949,48 @@ async function _gbpGetLocationName(accessToken) {
   return _gbpLocationName;
 }
 
+// TEMPORARY DEBUG — remove after location ID is found
+app.get('/api/gbp-debug', async (req, res) => {
+  try {
+    const token = await _gbpGetAccessToken();
+    const results = {};
+
+    // 1. List all accounts
+    const acctResp = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    results.accountsStatus = acctResp.status;
+    results.accounts = await acctResp.json();
+
+    // 2. Try listing locations under each account
+    const accounts = results.accounts?.accounts || [];
+    results.locationsByAccount = {};
+    for (const acct of accounts) {
+      const locResp = await fetch(
+        `https://mybusinessinformation.googleapis.com/v1/${acct.name}/locations?readMask=name,title`,
+        { headers: { Authorization: 'Bearer ' + token } }
+      );
+      results.locationsByAccount[acct.name] = {
+        status: locResp.status,
+        data: await locResp.json()
+      };
+    }
+
+    // 3. Search for MGE by name
+    const searchResp = await fetch('https://mybusinessinformation.googleapis.com/v1/googleLocations:search', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'Madison Gas and Electric Madison WI' })
+    });
+    results.searchStatus = searchResp.status;
+    results.searchResults = await searchResp.json();
+
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/reviews', async (req, res) => {
   // Not yet configured — return pending so the frontend shows the waiting state
   if (!config.googleReviews?.enabled) {
