@@ -1924,35 +1924,21 @@
             box-shadow: 0 1px 4px rgba(0,0,0,0.05);
         }
         .comment-ticker-header {
-            display: flex; align-items: center; gap: 10px;
-            padding: 10px 18px 9px;
+            display: flex; align-items: center;
+            padding: 14px 20px 13px;
             border-bottom: 1px solid #F1F5F9;
         }
-        /* Small green accent dot — quiet signal without "LIVE" text */
-        .comment-ticker-header::before {
-            content: '';
-            width: 8px; height: 8px; border-radius: 50%;
-            background: #00A651;
-            flex-shrink: 0;
-            box-shadow: 0 0 6px rgba(0,166,81,0.5);
-            animation: tickerDotPulse 2.4s ease-in-out infinite;
-        }
-        @keyframes tickerDotPulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.45; }
-        }
         .comment-ticker-title {
-            font-size: 13px; font-weight: 700; color: #1B2559;
-            letter-spacing: -0.01em; flex: 1;
+            /* Matches .card-title style */
+            font-size: 15px; font-weight: 800; color: #1B2559;
+            text-transform: uppercase; letter-spacing: 0.5px;
         }
-        .comment-ticker-count {
-            font-size: 11px; color: #94A3B8; font-weight: 500;
-        }
-        /* Scrolling track */
+        .comment-ticker-count { display: none; }
+        /* Scrolling track — tall enough for 2–3 lines of text */
         .comment-ticker-track {
             overflow: hidden;
             position: relative;
-            height: 62px;
+            height: 110px;
         }
         /* Fade masks */
         .comment-ticker-track::before,
@@ -1970,10 +1956,9 @@
             background: linear-gradient(to left, #fff, transparent);
         }
         .comment-ticker-belt {
-            display: flex; align-items: center;
-            height: 100%;
-            white-space: nowrap;
-            animation: tickerScroll 28s linear infinite;
+            display: inline-flex; align-items: flex-start;
+            height: 100%; padding: 14px 0;
+            animation: tickerScroll 22s linear infinite;
             will-change: transform;
         }
         .comment-ticker-belt:hover { animation-play-state: paused; }
@@ -1981,42 +1966,51 @@
             0%   { transform: translateX(0); }
             100% { transform: translateX(-50%); }
         }
+        /* Each item is a fixed-width column so text wraps naturally */
         .comment-ticker-item {
-            display: inline-flex; align-items: baseline; gap: 8px;
-            padding: 0 36px 0 0;
+            display: inline-flex; flex-direction: column; gap: 5px;
+            flex-shrink: 0; width: 360px;
+            padding: 0 48px 0 20px;
         }
         .comment-ticker-quote {
-            font-size: 13.5px; font-weight: 500; color: #334155;
-            font-style: italic;
+            font-size: 14.5px; font-weight: 500; color: #334155;
+            font-style: italic; line-height: 1.45;
+            white-space: normal; word-wrap: break-word;
+        }
+        .comment-ticker-byline {
+            display: flex; align-items: center; gap: 6px;
         }
         .comment-ticker-author {
             font-size: 11px; font-weight: 700; color: #006553;
-            white-space: nowrap; flex-shrink: 0;
+            white-space: nowrap;
         }
         .comment-ticker-platform {
             font-size: 9.5px; font-weight: 700; letter-spacing: 0.4px;
             text-transform: uppercase; color: #94A3B8;
         }
         .comment-ticker-sep {
-            color: #CBD5E1;
-            font-size: 18px; font-weight: 300;
-            padding: 0 4px 0 0;
-            flex-shrink: 0;
+            color: #CBD5E1; font-size: 18px; font-weight: 300;
+            padding: 0 4px; flex-shrink: 0; align-self: center;
         }
 
-        /* AHS Over Time — collapsible section */
+        /* AHS Over Time — collapsible, lives inside the left column below the AHS card */
         .ahs-chart-section {
-            max-width: 1600px; margin: 0 auto; padding: 0 36px 24px;
             overflow: hidden;
             max-height: 0;
             opacity: 0;
-            transition: max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease, padding 0.35s ease;
-            padding-bottom: 0;
+            margin-top: 0;
+            transition: max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease, margin-top 0.3s ease;
         }
         .ahs-chart-section.expanded {
-            max-height: 520px;
+            max-height: 440px;
             opacity: 1;
-            padding-bottom: 24px;
+            margin-top: -8px; /* tuck it snug under the AHS card */
+        }
+        .ahs-chart-section .card {
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+            border-top: none;
+            margin-top: 0;
         }
         /* AHS main card: clickable to reveal chart */
         .ahs-card-clickable {
@@ -3633,6 +3627,24 @@
             </div>
         </div>
 
+        <!-- AHS Over Time chart — collapses out below the score card when clicked -->
+        <div class="ahs-chart-section" id="ahsChartSection">
+            <div class="card">
+                <div class="timeline-header">
+                    <div class="card-title" style="margin-bottom:0;">Audience Health Over Time <span class="timeline-sub">last 365 days &middot; daily snapshots</span></div>
+                    <div class="timeline-legend" style="flex-wrap:wrap;">
+                        <span class="tl-legend-item"><span class="tl-band tl-band-pos"></span>Healthy 60+</span>
+                        <span class="tl-legend-item"><span class="tl-band tl-band-neu"></span>Fair 45-59</span>
+                        <span class="tl-legend-item"><span class="tl-band tl-band-neg"></span>Weak &lt;45</span>
+                    </div>
+                </div>
+                <div class="timeline-stats" id="timelineStats"></div>
+                <div class="chart-container" style="height: 260px; position: relative; margin-top: 14px;">
+                    <canvas id="sentimentTimelineChart"></canvas>
+                </div>
+            </div>
+        </div>
+
         <!-- Live Comment Feed -->
         <div class="card">
             <div class="card-title">Live Comment Feed <span id="commentCount" style="font-weight:400; text-transform:none; letter-spacing:0;"></span></div>
@@ -3779,7 +3791,6 @@
     <div class="comment-ticker-shell">
         <div class="comment-ticker-header">
             <span class="comment-ticker-title">Community Voices</span>
-            <span class="comment-ticker-count" id="commentTickerCount"></span>
         </div>
         <div class="comment-ticker-track">
             <div class="comment-ticker-belt" id="commentTickerBelt"></div>
@@ -3787,23 +3798,7 @@
     </div>
 </div>
 
-<!-- Full-width: Audience Health Over Time (collapsed by default, revealed by clicking AHS card) -->
-<div class="ahs-chart-section" id="ahsChartSection">
-    <div class="card">
-        <div class="timeline-header">
-            <div class="card-title" style="margin-bottom:0;">Audience Health Over Time <span class="timeline-sub">last 365 days &middot; daily snapshots</span></div>
-            <div class="timeline-legend" style="flex-wrap:wrap;">
-                <span class="tl-legend-item"><span class="tl-band tl-band-pos"></span>Healthy 60+</span>
-                <span class="tl-legend-item"><span class="tl-band tl-band-neu"></span>Fair 45-59</span>
-                <span class="tl-legend-item"><span class="tl-band tl-band-neg"></span>Weak &lt;45</span>
-            </div>
-        </div>
-        <div class="timeline-stats" id="timelineStats"></div>
-        <div class="chart-container" style="height: 340px; position: relative; margin-top: 14px;">
-            <canvas id="sentimentTimelineChart"></canvas>
-        </div>
-    </div>
-</div>
+<!-- AHS chart section moved inside left column (above) -->
 
 
 </div><!-- /#dashboardView -->
@@ -7368,47 +7363,38 @@ function renderCommentTicker(allComments) {
     const wrap = document.getElementById('commentTickerWrap');
     if (!belt || !wrap || !allComments || !allComments.length) return;
 
-    const STORM_KEYWORDS = /\boutage\b|\bstorm\b|\bpower\s*(out|back|restor)\w*|\bcrewm?\b|\blinemanm?\b|\bcrew\b|\bprepare\b|\bsafe\b|\bwarm\b|\bthank\b|\bamazing\b|\bheroes?\b|\bgreat\s*job\b|\bresponse\b/i;
     const platLabel = { fb: 'Facebook', ig: 'Instagram', li: 'LinkedIn', yt: 'YouTube' };
 
-    // Score all comments and prefer high-scoring ones with meaningful text
-    const scored = allComments
-        .filter(c => c.text && c.text.trim().length > 15)
-        .map(c => {
-            const s = commentScore(c);
-            const isStorm = STORM_KEYWORDS.test(c.text || '');
-            return { c, score: s.score, isStorm };
-        })
-        .filter(x => x.score >= 62 || x.isStorm)
-        .sort((a, b) => (b.isStorm ? 10 : 0) + b.score - (a.isStorm ? 10 : 0) - a.score);
+    // Only show comments with score ≥ 80 (high-quality positive voices)
+    const picks = allComments
+        .filter(c => c.text && c.text.trim().length > 20)
+        .map(c => ({ c, score: commentScore(c).score }))
+        .filter(x => x.score >= 80)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 24)
+        .sort(() => Math.random() - 0.45); // light shuffle so it's not always the same order
 
-    if (scored.length < 3) { wrap.style.display = 'none'; return; }
-
-    // Take up to 20, shuffle lightly
-    const picks = scored.slice(0, 20).sort(() => Math.random() - 0.45);
+    if (picks.length < 2) { wrap.style.display = 'none'; return; }
 
     const itemHtml = picks.map(({ c }) => {
-        const quote = c.text.length > 110 ? c.text.substring(0, 108).trimEnd() + '…' : c.text;
         const plat = platLabel[c.platform] || c.platform;
-        return '<div class="comment-ticker-item">' +
-            '<span class="comment-ticker-quote">“' + escapeHtml(quote) + '”</span>' +
-            '<span class="comment-ticker-author">— ' + escapeHtml(c.author || 'Community Member') + '</span>' +
-            '<span class="comment-ticker-platform">' + escapeHtml(plat) + '</span>' +
-            '<span class="comment-ticker-sep">|</span>' +
-        '</div>';
+        // No truncation — show full comment text and let it wrap naturally
+        return '<div class=”comment-ticker-item”>' +
+            '<span class=”comment-ticker-quote”>”' + escapeHtml(c.text) + '”</span>' +
+            '<div class=”comment-ticker-byline”>' +
+                '<span class=”comment-ticker-author”>— ' + escapeHtml(c.author || 'Community Member') + '</span>' +
+                '<span class=”comment-ticker-platform”>' + escapeHtml(plat) + '</span>' +
+            '</div>' +
+        '</div><span class=”comment-ticker-sep”>|</span>';
     }).join('');
 
-    // Duplicate the belt so the scroll loops seamlessly
+    // Duplicate for seamless loop
     belt.innerHTML = itemHtml + itemHtml;
 
-    // Adjust scroll speed — faster base, scales with content but stays snappy
-    const totalChars = picks.reduce((n, { c }) => n + (c.text || '').length, 0);
-    const duration = Math.max(14, Math.min(32, totalChars * 0.095));
+    // Speed: items are 360px wide; total belt width drives duration
+    const totalItems = picks.length;
+    const duration = Math.max(12, Math.min(26, totalItems * 1.8));
     belt.style.animationDuration = duration + 's';
-
-    // Update count label
-    const countEl = document.getElementById('commentTickerCount');
-    if (countEl) countEl.textContent = picks.length + ' community voices';
 
     wrap.style.display = 'block';
 }
@@ -7423,7 +7409,6 @@ function toggleAHSChart(e) {
     const isOpen = card.classList.toggle('ahs-open');
     if (isOpen) {
         section.classList.add('expanded');
-        section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } else {
         section.classList.remove('expanded');
     }
