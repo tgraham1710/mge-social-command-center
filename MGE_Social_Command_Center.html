@@ -1963,7 +1963,7 @@
             display: inline-flex;
             align-items: center;
             flex-shrink: 0;
-            gap: 16px;
+            gap: 10px;
             padding: 0 8px;
             animation: tickerScroll 80s linear infinite;
             will-change: transform;
@@ -1973,22 +1973,20 @@
             0%   { transform: translateX(0); }
             100% { transform: translateX(-50%); }
         }
-        /* Each item: fixed-width card with green left accent */
+        /* Each item: fixed-width card with platform-colored left accent */
         .comment-ticker-item {
             display: inline-flex;
             flex-direction: column;
             justify-content: center;
-            gap: 10px;
-            width: 240px;
+            gap: 6px;
+            width: 220px;
             flex-shrink: 0;
-            min-height: 110px;
-            max-height: 136px;
-            padding: 16px 18px 16px 18px;
+            padding: 10px 12px 10px 14px;
             background: #ffffff;
-            border-radius: 10px;
+            border-radius: 8px;
             border: 1px solid #E2E8F0;
-            border-left: 4px solid #006553;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+            border-left: 5px solid #006553;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.07);
             box-sizing: border-box;
             overflow: hidden;
         }
@@ -7431,7 +7429,7 @@ function renderCommentTicker(allComments) {
             '<div class=”comment-ticker-byline”>' +
                 '<span class=”comment-ticker-author”>' + escapeHtml(c.author || 'Community Member') + '</span>' +
                 '<span class=”comment-ticker-dot”></span>' +
-                '<span class=”comment-ticker-platform” style=”color:' + color + '”>' + escapeHtml(plat) + '</span>' +
+                '<span class=”comment-ticker-platform” style=”color:' + color + '; background:' + color + '1a; padding:1px 5px; border-radius:3px;”>' + escapeHtml(plat) + '</span>' +
             '</div>' +
         '</div>';
     }).join('');
