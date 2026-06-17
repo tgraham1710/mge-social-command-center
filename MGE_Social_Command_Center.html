@@ -1017,84 +1017,87 @@
         .comment-feed::-webkit-scrollbar { width: 5px; }
         .comment-feed::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
 
+        /* ── Comment cards — compact single-pass design ───────────────────── */
         .comment-card {
-            background: #FFFFFF; border-radius: 11px; padding: 0;
-            border: 1px solid #E2E8F0; transition: all 0.2s; overflow: hidden;
+            background: #FFFFFF; border-radius: 8px; padding: 8px 11px 7px;
+            border: 1px solid #E9EEF4; transition: border-color 0.15s, box-shadow 0.15s;
             flex-shrink: 0;
         }
-        .comment-card:hover { border-color: #CBD5E1; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+        .comment-card:hover { border-color: #C8D5E3; box-shadow: 0 1px 8px rgba(0,0,0,0.05); }
+
+        /* Single header row: avatar · author · platform · time · likes · sentiment */
         .comment-card-header {
-            display: flex; align-items: center; gap: 9px;
-            padding: 9px 12px; border-bottom: 1px solid #F1F5F9;
-            flex-wrap: nowrap;
+            display: flex; align-items: center; gap: 7px;
+            margin-bottom: 5px; flex-wrap: nowrap;
         }
         .comment-header-sentiment { margin-left: auto; flex-shrink: 0; }
         .comment-avatar {
-            flex-shrink: 0; width: 32px; height: 32px;
+            flex-shrink: 0; width: 24px; height: 24px;
             border-radius: 50%; display: flex; align-items: center;
-            justify-content: center; color: white; font-size: 13px; font-weight: 700;
+            justify-content: center; color: white; font-size: 10px; font-weight: 700;
         }
         .comment-avatar.fb { background: #1877F2; }
         .comment-avatar.ig { background: linear-gradient(45deg, #F58529, #DD2A7B, #8134AF); }
         .comment-avatar.li { background: #0A66C2; }
         .comment-avatar.yt { background: #FF0000; }
         .comment-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-        .comment-header-info { flex: 1; min-width: 0; }
-        .comment-author-row { display: flex; align-items: center; gap: 8px; }
-        .comment-author { font-size: 13px; font-weight: 700; color: #1B2559; }
+        .comment-header-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .comment-author { font-size: 12px; font-weight: 700; color: #1B2559; white-space: nowrap; }
         .comment-platform-tag {
-            font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
-            text-transform: uppercase; letter-spacing: 0.5px;
+            font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 8px;
+            text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap;
         }
         .comment-platform-tag.fb { background: #EBF5FF; color: #1877F2; }
         .comment-platform-tag.ig { background: #FDF2F8; color: #DD2A7B; }
         .comment-platform-tag.li { background: #EFF6FF; color: #0A66C2; }
         .comment-platform-tag.yt { background: #FEF2F2; color: #FF0000; }
-        .comment-time { font-size: 11px; color: #94A3B8; margin-top: 1px; }
-        .comment-post-preview {
-            display: flex; gap: 10px; padding: 8px 12px;
-            background: #F8FAFC; border-bottom: 1px solid #F1F5F9;
+        .comment-time { font-size: 10.5px; color: #A8B8CC; }
+        /* Likes inline in header row */
+        .comment-likes-inline {
+            display: flex; align-items: center; gap: 3px;
+            font-size: 11px; color: #94A3B8; font-weight: 500; white-space: nowrap;
         }
-        .comment-thumb {
-            width: 64px; height: 48px; border-radius: 7px; overflow: hidden;
-            flex-shrink: 0; background: #E2E8F0;
-        }
-        .comment-thumb img { width: 100%; height: 100%; object-fit: cover; }
-        .comment-post-copy {
-            flex: 1; font-size: 11.5px; color: #64748B; line-height: 1.4;
-            overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-        }
-        .comment-body { padding: 9px 12px; }
-        .comment-text {
-            font-size: 13px; color: #1E293B; line-height: 1.5; margin-bottom: 7px;
-            word-wrap: break-word; font-weight: 500;
-        }
-        .comment-footer {
-            display: flex; align-items: center; gap: 12px;
-            padding-top: 6px; border-top: 1px solid #F1F5F9;
-        }
+        .comment-likes-inline svg { width: 11px; height: 11px; fill: #EF4444; }
+
+        /* Compact sentiment badge */
         .comment-sentiment-badge {
-            margin-left: auto; flex-shrink: 0;
-            display: flex; align-items: center; gap: 6px;
-            padding: 5px 12px; border-radius: 20px;
-            font-size: 11px; font-weight: 700;
+            display: flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 20px;
+            font-size: 10px; font-weight: 700;
         }
-        .comment-sentiment-badge .score-num { font-size: 18px; line-height: 1; }
-        .comment-sentiment-badge .score-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .comment-sentiment-badge .score-num { font-size: 13px; line-height: 1; }
+        .comment-sentiment-badge .score-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; }
         .comment-sentiment-badge.positive,
         .comment-sentiment-badge.strongly-positive { background: #DCFCE7; color: #16A34A; }
         .comment-sentiment-badge.neutral  { background: #FEF9C3; color: #CA8A04; }
         .comment-sentiment-badge.negative,
         .comment-sentiment-badge.strongly-negative { background: #FEE2E2; color: #DC2626; }
-        /* AI-scored badge gets a tiny sparkle icon to distinguish from lexical */
         .comment-sentiment-badge.ai-scored::before {
-            content: ''; width: 8px; height: 8px; border-radius: 50%;
+            content: ''; width: 6px; height: 6px; border-radius: 50%;
             background: currentColor; opacity: 0.45; margin-right: 2px;
             box-shadow: 0 0 0 2px rgba(255,255,255,0.6);
         }
         /* Cursor cue for any element with our custom tooltip */
         .comment-sentiment-badge[data-tt],
         .reply-context-chip[data-tt] { cursor: help; }
+
+        /* Comment text — the star of the show */
+        .comment-text {
+            font-size: 13px; color: #1E293B; line-height: 1.48;
+            word-wrap: break-word; font-weight: 500;
+        }
+
+        /* Post context — subtle "Re:" line below the comment, no thumbnail */
+        .comment-post-context {
+            margin-top: 5px;
+            font-size: 10.5px; color: #A8B8CC; line-height: 1.35;
+            overflow: hidden; display: -webkit-box;
+            -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+        }
+        .comment-post-context-label {
+            font-weight: 600; margin-right: 3px; color: #B8C5D4;
+        }
+
         /* Global tooltip element (one for the whole page) — positioned via JS */
         #mge-tt {
             position: fixed; z-index: 99999;
@@ -1110,29 +1113,24 @@
             white-space: normal; text-align: left;
         }
         #mge-tt.show { opacity: 1; }
+
         /* Reply comments: indented + left rail */
         .comment-card.is-reply {
-            margin-left: 28px; position: relative;
+            margin-left: 24px; position: relative;
             border-left: 3px solid #E2E8F0;
         }
         .comment-card.is-reply::before {
-            content: '↳'; position: absolute; left: -22px; top: 18px;
-            font-size: 18px; color: #94A3B8; font-weight: 600;
+            content: '↳'; position: absolute; left: -19px; top: 10px;
+            font-size: 14px; color: #94A3B8; font-weight: 600;
         }
         .reply-context-chip {
             display: inline-flex; align-items: center; gap: 4px;
-            padding: 3px 9px; margin-bottom: 6px;
+            padding: 2px 7px; margin-bottom: 4px;
             background: #F1F5F9; color: #475569;
-            border-radius: 12px; font-size: 11px; font-weight: 500;
+            border-radius: 10px; font-size: 10.5px; font-weight: 500;
             cursor: help; position: relative;
         }
-        /* Reply chip tooltip handled by global #mge-tt JS, not pseudo-element (overflow safe) */
-        .comment-stat {
-            display: flex; align-items: center; gap: 4px;
-            font-size: 11px; color: #94A3B8; font-weight: 500;
-        }
-        .comment-stat svg { width: 14px; height: 14px; }
-        .comment-stat.likes svg { fill: #EF4444; }
+        .comment-stat { display: none; } /* stats now inline in header */
         .no-comments {
             text-align: center; padding: 40px 20px; color: #94A3B8;
         }
@@ -1888,6 +1886,119 @@
         .posts-cat-dropdown:focus { outline: none; border-color: #003B71; box-shadow: 0 0 0 3px rgba(0,59,113,0.10); }
         /* Legacy category tab class kept for backward compat (no longer rendered) */
         .posts-category-tabs { display: none; }
+
+        /* ── Customer Comment Ticker ──────────────────────────────────────── */
+        .comment-ticker-wrap {
+            max-width: 1600px; margin: 0 auto 0; padding: 0 36px 20px;
+        }
+        .comment-ticker-shell {
+            background: linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #003B71 100%);
+            border-radius: 14px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 8px 32px rgba(15,23,42,0.28), 0 0 0 1px rgba(255,255,255,0.06);
+        }
+        /* Animated left-edge glow bar */
+        .comment-ticker-shell::before {
+            content: '';
+            position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+            background: linear-gradient(180deg, #00A651, #00D1FF, #00A651);
+            background-size: 100% 200%;
+            animation: tickerRailFlow 3s linear infinite;
+        }
+        @keyframes tickerRailFlow {
+            0%   { background-position: 0% 0%; }
+            100% { background-position: 0% 200%; }
+        }
+        .comment-ticker-header {
+            display: flex; align-items: center; gap: 14px;
+            padding: 11px 20px 10px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+        .comment-ticker-label {
+            font-size: 10px; font-weight: 900; letter-spacing: 1.6px;
+            text-transform: uppercase; color: #00D1FF;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .comment-ticker-divider {
+            width: 1px; height: 18px; background: rgba(255,255,255,0.15); flex-shrink: 0;
+        }
+        .comment-ticker-title {
+            font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.85);
+            letter-spacing: 0.02em; flex: 1;
+        }
+        .comment-ticker-live {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 10px; font-weight: 800; letter-spacing: 0.8px;
+            text-transform: uppercase; color: #00A651; flex-shrink: 0;
+        }
+        .comment-ticker-live::before {
+            content: '';
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #00A651;
+            box-shadow: 0 0 8px rgba(0,166,81,0.9);
+            animation: tickerLivePulse 1.5s ease-in-out infinite;
+        }
+        @keyframes tickerLivePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        /* Scrolling belt */
+        .comment-ticker-track {
+            overflow: hidden;
+            padding: 0;
+            position: relative;
+            height: 48px;
+        }
+        /* Fade masks on left and right edges */
+        .comment-ticker-track::before,
+        .comment-ticker-track::after {
+            content: '';
+            position: absolute; top: 0; bottom: 0; width: 80px; z-index: 2;
+            pointer-events: none;
+        }
+        .comment-ticker-track::before {
+            left: 0;
+            background: linear-gradient(to right, #0F172A, transparent);
+        }
+        .comment-ticker-track::after {
+            right: 0;
+            background: linear-gradient(to left, #003B71, transparent);
+        }
+        .comment-ticker-belt {
+            display: flex; align-items: center;
+            height: 100%;
+            white-space: nowrap;
+            animation: tickerScroll 60s linear infinite;
+            will-change: transform;
+        }
+        .comment-ticker-belt:hover { animation-play-state: paused; }
+        @keyframes tickerScroll {
+            0%   { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .comment-ticker-item {
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 0 28px 0 0;
+        }
+        .comment-ticker-quote {
+            font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.9);
+            font-style: italic; letter-spacing: 0.01em;
+        }
+        .comment-ticker-author {
+            font-size: 11px; font-weight: 700; color: #00D1FF;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .comment-ticker-platform {
+            font-size: 9px; font-weight: 800; letter-spacing: 0.5px;
+            text-transform: uppercase; color: rgba(255,255,255,0.4);
+        }
+        .comment-ticker-sep {
+            color: rgba(255,255,255,0.2);
+            font-size: 20px; font-weight: 100;
+            padding: 0 6px 0 0;
+            flex-shrink: 0;
+        }
         .posts-feed-section { position: relative; overflow: hidden; }
         .posts-scroll-btn {
             position: absolute; top: 50%; transform: translateY(-50%);
@@ -2847,15 +2958,15 @@
         }
         .mentions-summary strong { color: #1B2559; }
 
-        .mentions-feed { display: flex; flex-direction: column; gap: 14px; }
+        .mentions-feed { display: flex; flex-direction: column; gap: 7px; }
         .mention-card {
-            background: #fff; border-radius: 12px; padding: 0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+            background: #fff; border-radius: 9px; padding: 0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
             border-left: 4px solid #00a84f;
-            transition: transform 0.15s, box-shadow 0.15s;
+            transition: transform 0.12s, box-shadow 0.12s;
             overflow: hidden;
             display: grid;
-            grid-template-columns: 180px 1fr;
+            grid-template-columns: 1fr;
             gap: 0;
         }
         .mention-card.no-thumb {
@@ -3007,35 +3118,22 @@
             50% { box-shadow: 0 0 20px rgba(0,166,81,0.8); }
         }
 
-        .mention-thumb-wrap {
-            width: 180px; height: 100%; min-height: 140px;
-            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-            position: relative; overflow: hidden;
-        }
-        .mention-thumb-img {
-            width: 100%; height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-        .mention-thumb-fallback {
-            position: absolute; inset: 0;
-            display: flex; align-items: center; justify-content: center;
-            color: #94a3b8; font-size: 36px; font-weight: 700;
-            letter-spacing: -1px;
-        }
+        .mention-thumb-wrap { display: none; } /* thumbnail column removed for density */
+        .mention-thumb-img { display: none; }
+        .mention-thumb-fallback { display: none; }
         .mention-body {
-            padding: 16px 20px; display: flex; flex-direction: column;
+            padding: 10px 14px 9px; display: flex; flex-direction: column;
             min-width: 0;
         }
         .mention-top-row {
             display: flex; align-items: center; justify-content: space-between;
-            gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+            gap: 8px; margin-bottom: 5px; flex-wrap: wrap;
         }
         .mention-source-pill {
-            display: inline-flex; align-items: center; gap: 8px;
-            padding: 6px 12px; border-radius: 999px;
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 3px 9px; border-radius: 999px;
             background: #f1f5f9; color: #1B2559;
-            font-size: 13px; font-weight: 700;
+            font-size: 11px; font-weight: 700;
             border: 1px solid #e2e8f0;
         }
         .mention-source-pill .source-dot {
@@ -3052,10 +3150,10 @@
         .mention-card.source-podcasts .source-dot { background: #a855f7; }
 
         .mention-date-pill {
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 5px 11px; border-radius: 999px;
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 999px;
             background: #fef3c7; color: #92400e;
-            font-size: 12px; font-weight: 700;
+            font-size: 11px; font-weight: 700;
             white-space: nowrap;
         }
         .mention-date-pill.fresh { background: #d1fae5; color: #065f46; }
@@ -3067,22 +3165,23 @@
         }
 
         .mention-title {
-            font-size: 17px; font-weight: 700; color: #1B2559;
-            margin-bottom: 6px; line-height: 1.35;
+            font-size: 14px; font-weight: 700; color: #1B2559;
+            margin-bottom: 3px; line-height: 1.3;
+            letter-spacing: -0.01em;
         }
         .mention-title a { color: inherit; text-decoration: none; }
         .mention-title a:hover { color: #003B71; text-decoration: underline; }
         .mention-snippet {
-            font-size: 14px; color: #4b5563; line-height: 1.5;
-            margin-bottom: 10px;
+            font-size: 12.5px; color: #4b5563; line-height: 1.4;
+            margin-bottom: 6px;
             display: -webkit-box;
-            -webkit-line-clamp: 3;
+            -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
         .mention-meta {
-            display: flex; gap: 10px; flex-wrap: wrap;
-            font-size: 12px; color: #6b7280;
+            display: flex; gap: 8px; flex-wrap: wrap;
+            font-size: 11px; color: #6b7280;
             align-items: center; margin-top: auto;
         }
         .mention-meta .meta-author {
@@ -3639,6 +3738,21 @@
             </div>
             <button class="posts-scroll-btn right" id="postsScrollRight" onclick="document.getElementById('postsWrap').scrollLeft += 520">&#8250;</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Comment Ticker — "What Our Customers Are Saying About Us" -->
+<div class="comment-ticker-wrap" id="commentTickerWrap" style="display:none;">
+    <div class="comment-ticker-shell">
+        <div class="comment-ticker-header">
+            <span class="comment-ticker-label">Live</span>
+            <div class="comment-ticker-divider"></div>
+            <span class="comment-ticker-title">What Our Customers Are Saying About Us</span>
+            <span class="comment-ticker-live">Social</span>
+        </div>
+        <div class="comment-ticker-track">
+            <div class="comment-ticker-belt" id="commentTickerBelt"></div>
         </div>
     </div>
 </div>
@@ -4381,13 +4495,12 @@ function processData(raw, dateRangeOverride) {
             const comments = p.comments?.summary?.total_count || 0;
             const shares = p.shares?.count || 0;
             // Per-post insights (from /facebook/posts insights.metric expansion).
-            // Meta deprecated all "total impressions" variants for Page posts in 2024 — only
-            // post_impressions_unique (unique reach per post) survives. Summing per-post unique
-            // reach across the period gives us cross-post cumulative exposure: someone who saw
-            // 3 of MGE's posts contributes 3 to this number. It's the closest thing to "impressions"
-            // the public Page API still exposes. KPI breakdown footnote calls this out.
+            // Meta deprecated ALL post_impressions_* metrics in wave 2 (2026-06-15).
+            // Replacement: post_media_view ("Post Unique Media Views") — same concept, updated methodology.
+            // Summing per-post unique viewers across posts gives cross-post cumulative exposure;
+            // someone who saw 3 MGE posts contributes 3. Closest to "impressions" the API still exposes.
             const postIns = p.insights?.data || [];
-            const postReachUnique = (postIns.find(m => m.name === 'post_impressions_unique')?.values?.[0]?.value) || 0;
+            const postReachUnique = (postIns.find(m => m.name === 'post_media_view' || m.name === 'post_impressions_unique')?.values?.[0]?.value) || 0;
             result.audience.fb.impressions += postReachUnique;
             // Content type categorization. status_type values from Graph API:
             // added_video / added_photos / shared_story / mobile_status_update / created_note / created_event ...
@@ -4424,6 +4537,12 @@ function processData(raw, dateRangeOverride) {
             result.kpis.reactions += reactions;
             result.kpis.comments += comments;
             result.kpis.shares += shares;
+            // Accumulate per-post video views directly — date-filtered and confirmed working.
+            // page_video_views from page-level insights used only as fallback (see below).
+            if (postVideoViews > 0) {
+                result.platformEngagement.fb.views += postVideoViews;
+                result.kpis.views += postVideoViews;
+            }
             result.platformEngagement.fb.like += hasTyped ? rLike : reactions;
             result.platformEngagement.fb.love += rLove;
             result.platformEngagement.fb.wow += rWow;
@@ -4481,10 +4600,9 @@ function processData(raw, dateRangeOverride) {
             result.platformComments.fb.push(item);
         });
     }
-    // FB video views from page-level insights (sums all video plays >3s across all posts in window).
-    // Previous code looked at raw.facebook.insights.page_views_total as a flat property — but the
-    // Graph API returns insights as { data: [{name, values}, ...] } so that lookup always returned
-    // undefined. That meant FB video views were silently 0 in the dashboard.
+    // FB video views: primary source is per-post post_video_views (accumulated in the post loop above,
+    // date-filtered, confirmed working). Page-level page_video_views used only as a fallback if
+    // per-post data came back empty (e.g. insights expansion failed for all posts).
     if (raw.facebook.insights && raw.facebook.insights.data) {
         const insArr = raw.facebook.insights.data;
         const sumByName = (name) => {
@@ -4492,9 +4610,13 @@ function processData(raw, dateRangeOverride) {
             if (!m || !Array.isArray(m.values)) return 0;
             return m.values.reduce((s, v) => s + (Number(v.value) || 0), 0);
         };
-        const fbVideoViews = sumByName('page_video_views');
-        result.kpis.views += fbVideoViews;
-        result.platformEngagement.fb.views += fbVideoViews;
+        // Also pull page_media_view (Total Unique Media Views — replaces page_impressions_unique)
+        // and page_post_engagements for the reach/engagement calculations below.
+        const fbVideoViewsFallback = sumByName('page_video_views');
+        if (result.platformEngagement.fb.views === 0 && fbVideoViewsFallback > 0) {
+            result.kpis.views += fbVideoViewsFallback;
+            result.platformEngagement.fb.views += fbVideoViewsFallback;
+        }
     }
 
     // --- Instagram ---
@@ -4742,9 +4864,11 @@ function processData(raw, dateRangeOverride) {
             return m.values.reduce((s, v) => s + (Number(v.value) || 0), 0);
         };
         // Fall back to flat-object shape for backwards compat
-        const flatReach = ins.page_impressions_unique || ins.reach;
+        // page_impressions_unique deprecated 2026-06-15; replacement is page_media_view (Total Unique Media Views)
+        const flatReach = ins.page_media_view || ins.page_impressions_unique || ins.reach;
         const flatImpr = ins.page_impressions || ins.impressions;
         result.audience.fb.reach = (typeof flatReach === 'number' ? flatReach : 0)
+            || sumMetric('page_media_view')
             || sumMetric('page_impressions_unique');
         result.audience.fb.impressions = (typeof flatImpr === 'number' ? flatImpr : 0)
             || sumMetric('page_impressions');
@@ -4965,7 +5089,7 @@ function _platformReactions(pe, k) {
 var KPI_META = {
     reach: {
         label: 'Total Reach',
-        description: 'Unique people who saw your content in this window. FB: page_impressions_unique. IG: account-level reach. YT: total channel views (proxy — true impressions require YouTube Analytics API + OAuth). LI: requires Community Management API approval (pending).',
+        description: 'Unique people who saw your content in this window. FB: page_media_view (Meta\'s "Total Unique Media Views" — the June 2026 replacement for the deprecated page_impressions_unique / Reach metric; same concept, updated methodology). IG: account-level reach (unaffected by Meta deprecation). YT: total channel views (proxy — true impressions require YouTube Analytics API + OAuth). LI: requires Community Management API approval (pending).',
         platformValue: function(pe, k) {
             var aud = window._lastProcessedData && window._lastProcessedData.audience;
             return (aud && aud[k]) ? (aud[k].reach || 0) : 0;
@@ -5044,7 +5168,7 @@ var KPI_META = {
     },
     views: {
         label: 'Total Video Views',
-        description: 'Video plays across all platforms. YT: video viewCount. FB: page-level video plays >3s (page_video_views). IG: Reel + video post views. LI: pending Community Management API approval. Story views are tracked separately under each platform\'s Stories block (Platform Performance) since stories can be image OR video and aren\'t directly comparable to video plays.',
+        description: 'Video plays across all platforms. Note: Meta renamed "Video Views" to "Plays" in their June 2026 framework — "Views" now refers to impressions/display count for non-video content, while video plays specifically are called "Plays". Our metric source page_video_views maps to Meta\'s video Plays (>3 seconds), which is unchanged and undeprecated. YT: video viewCount. IG: Reel + video post views (metric name: views — intact). LI: pending Community Management API approval. Story views tracked separately (Platform Performance).',
         platformValue: function(pe, k) { return pe[k] ? (pe[k].views || 0) : 0; },
         platformNote: function(k, value) {
             if (k === 'li' && value === 0) return 'Community Management API approval pending';
@@ -5829,54 +5953,9 @@ function renderPlatformPerformance(data) {
             : ahsScoreHeader >= 35 ? 'tier-weak' : 'tier-poor';
         const ahsTierLabel = ahsScoreHeader == null ? '' : ahsLabel(ahsScoreHeader);
 
-        // Stories sub-block — only IG + FB have stories. Pulls from data.stories.summary[platform].
-        let storiesHtml = '';
-        if ((p.key === 'ig' || p.key === 'fb') && data.stories && data.stories.summary) {
-            const sm = data.stories.summary[p.key] || {};
-            const cnt = sm.count || 0;
-            if (cnt > 0) {
-                const bmt = sm.byMediaType || { video: 0, image: 0, other: 0 };
-                const breakdownParts = [];
-                if (bmt.video) breakdownParts.push(bmt.video + ' video');
-                if (bmt.image) breakdownParts.push(bmt.image + ' image');
-                if (bmt.other) breakdownParts.push(bmt.other + ' other');
-                const breakdownStr = breakdownParts.join(' · ');
-                const rowsList = [
-                    { label: 'Stories', val: cnt },
-                    { label: 'Reach', val: sm.reach || 0 }
-                ];
-                // Only show Views row if any story in this set produced view counts.
-                // Stories can be image-only (no view metric) so a 0 here would be misleading.
-                if ((sm.impressions || 0) > 0) {
-                    rowsList.push({ label: 'Views', val: sm.impressions });
-                }
-                rowsList.push({ label: 'Replies', val: sm.replies || 0 });
-                rowsList.push({ label: 'Shares', val: sm.shares || 0 });
-                if (p.key === 'ig') {
-                    if (sm.profile_visits) rowsList.push({ label: 'Profile visits', val: sm.profile_visits });
-                    if (sm.follows) rowsList.push({ label: 'Follows', val: sm.follows });
-                }
-                const rowsHtml = rowsList.map(function(r) {
-                    return '<div class="pp-stories-stat"><span class="pp-stories-stat-label">' + r.label + '</span><span class="pp-stories-stat-val">' + fmt(r.val) + '</span></div>';
-                }).join('');
-                storiesHtml =
-                    '<div class="pp-stories">' +
-                      '<div class="pp-stories-head">' +
-                        '<span class="pp-stories-title">📱 Stories' + (breakdownStr ? ' <span style="font-weight:500;color:#9ca3af;text-transform:none;letter-spacing:0;font-size:10px;margin-left:6px;">(' + breakdownStr + ')</span>' : '') + '</span>' +
-                        '<span class="pp-stories-count">' + cnt + (cnt === 1 ? ' story' : ' stories') + ' in window</span>' +
-                      '</div>' +
-                      '<div class="pp-stories-grid">' + rowsHtml + '</div>' +
-                    '</div>';
-            } else {
-                storiesHtml =
-                    '<div class="pp-stories">' +
-                      '<div class="pp-stories-head">' +
-                        '<span class="pp-stories-title">📱 Stories</span>' +
-                      '</div>' +
-                      '<div class="pp-stories-empty">No stories captured in this date range.</div>' +
-                    '</div>';
-            }
-        }
+        // Stories sub-block removed from platform cards per user request (2026-06-17).
+        // Stories data is still computed and shown under Content Types below.
+        const storiesHtml = '';
 
         // Follower count + MoM change — now lives inside the expanded body as one of the metrics,
         // NOT on the front of the card.
@@ -6112,8 +6191,9 @@ var BASELINES_KEY = 'mge_baselines_v6'; // v6: seed-anchored EWMA — first obs 
 // Engagement is follower-normalized and scored against published platform benchmarks.
 // Reach and Attention both use EWMA (MGE's own rolling average) as the baseline —
 // this is more meaningful than external benchmarks because MGE's reach metric is
-// page_impressions_unique summed over the window (inflated by paid promotion), not
-// per-post organic reach, so comparing it to an organic % benchmark is apples-to-oranges.
+// page_media_view (Total Unique Media Views, formerly page_impressions_unique) summed
+// over the window (inflated by paid promotion), not per-post organic reach, so
+// comparing it to an organic % benchmark is apples-to-oranges.
 //
 // Sources: Rival IQ 2025, Buffer 2026, Sprout Social, Hootsuite 2025.
 //
@@ -6258,7 +6338,8 @@ function _getPeriodDays() {
 }
 // Reach pillar — per-post reach vs MGE's own EWMA baseline.
 // We use per-post rather than follower-normalized because aud.fb.reach is
-// page_impressions_unique *summed across days* (not unique per window), which
+// page_media_view (Total Unique Media Views — Meta's June 2026 replacement for
+// page_impressions_unique) *summed across days* (not unique per window), which
 // can be 10-100× followers when paid promotion is running. That makes any fixed
 // benchmark (e.g. 5% organic rate) irrelevant. Instead we ask: "Is our reach
 // this period above or below our own rolling average?" — 50 = typical, 80+ = strong.
@@ -6321,7 +6402,7 @@ function updateBaselinesFromData(data) {
             totalViews += pe.views;
             totalViewPosts += pe.postCount;
         }
-        // Reach: raw platform reach per post (page_impressions_unique summed / posts)
+        // Reach: raw platform reach per post (page_media_view / Total Unique Media Views summed / posts)
         if (aud.reach && pe.postCount >= 1) {
             updateBaseline(k, 'reachPerPost', aud.reach / pe.postCount);
             totalReach += aud.reach;
@@ -7106,6 +7187,7 @@ function renderComments(data) {
     setupFilters();
     renderCommentFeed(_allComments);
     renderSentimentBar(_allComments);
+    renderCommentTicker(_allComments);
     // Kick off AI scoring in the background — non-blocking
     scoreCommentsWithAI(_allComments).catch(e => console.warn('[AI scoring] orchestration error:', e));
 }
@@ -7157,7 +7239,6 @@ function renderCommentFeed(comments) {
 
     feed.innerHTML = comments.map(c => {
         const s = commentScore(c);
-        // Map full label ("Strongly Positive") to CSS class ("strongly-positive")
         const labelClass = (s.label || 'neutral').toLowerCase().replace(/\s+/g, '-');
         const aiBadgeClass = s.source === 'ai' ? ' ai-scored' : '';
         const tooltip = s.source === 'ai' && s.rationale
@@ -7168,51 +7249,58 @@ function renderCommentFeed(comments) {
             month: 'short', day: 'numeric', year: 'numeric',
             hour: 'numeric', minute: '2-digit'
         }) : '';
-        const likesHtml = c.likes
-            ? '<div class="comment-stat likes">' + svgHeart + ' ' + c.likes + '</div>'
-            : '';
-        // Avatar: use real image if available, otherwise colored letter
+
+        // Avatar: real image or colored letter
         const avatarHtml = c.authorImage
             ? '<div class="comment-avatar ' + c.platform + '"><img src="' + escapeHtml(c.authorImage) + '" alt="" onerror="this.parentElement.innerHTML=\'' + (platMap[c.platform] || '?') + '\'"></div>'
             : '<div class="comment-avatar ' + c.platform + '">' + (platMap[c.platform] || '?') + '</div>';
-        // Post preview section with thumbnail + post copy
-        const postPreviewHtml = (c.postImage || c.postContext)
-            ? '<div class="comment-post-preview">' +
-                (c.postImage ? '<div class="comment-thumb"><img src="' + escapeHtml(c.postImage) + '" alt="" onerror="this.parentElement.style.display=\'none\'"></div>' : '') +
-                (c.postContext ? '<div class="comment-post-copy">' + escapeHtml(c.postContext.substring(0, 200)) + (c.postContext.length > 200 ? '...' : '') + '</div>' : '') +
-              '</div>'
+
+        // Tiny thumbnail in header row (28px square) — visual post anchor without the bulk
+        const thumbInlineHtml = c.postImage
+            ? '<img src="' + escapeHtml(c.postImage) + '" alt="" style="width:26px;height:26px;border-radius:4px;object-fit:cover;flex-shrink:0;border:1px solid #E2E8F0;" onerror="this.style.display=\'none\'">'
             : '';
-        // Reply chip for comments-on-comments — shows "↳ Replying to @parentAuthor", parent text on hover
+
+        // Author link (FB: click through to comment or post)
+        const authorUrl = (c.platform === 'fb' && c.commentId)
+            ? 'https://www.facebook.com/' + encodeURIComponent(c.commentId)
+            : (c.platform === 'fb' && c.postId ? 'https://www.facebook.com/' + encodeURIComponent(c.postId) : '');
+        const authorHtml = authorUrl
+            ? '<a class="comment-author" href="' + authorUrl + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;">' + escapeHtml(c.author) + '</a>'
+            : '<span class="comment-author">' + escapeHtml(c.author) + '</span>';
+
+        // Likes — shown inline after post context (bottom muted line)
+        const likesInlineHtml = c.likes
+            ? '<span class="comment-likes-inline" style="margin-left:auto;flex-shrink:0;">' + svgHeart + ' ' + c.likes + '</span>'
+            : '';
+
+        // Post context — single muted line at bottom ("Re: post copy...")
+        const postContextHtml = c.postContext
+            ? '<div class="comment-post-context" style="display:flex;align-items:center;gap:6px;">' +
+                '<span class="comment-post-context-label">Re:</span>' +
+                '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">' + escapeHtml(c.postContext.substring(0, 120)) + '</span>' +
+                likesInlineHtml +
+              '</div>'
+            : (c.likes ? '<div style="display:flex;justify-content:flex-end;margin-top:4px;">' + likesInlineHtml + '</div>' : '');
+
+        // Reply chip
         const replyChipHtml = c.isReply
             ? '<div class="reply-context-chip"' +
                 (c.parentCommentText ? ' data-tt="Parent comment: ' + escapeHtml(c.parentCommentText.substring(0, 280)) + (c.parentCommentText.length > 280 ? '…' : '') + '"' : '') +
               '>↳ Replying to ' + escapeHtml(c.parentAuthor || 'a comment') + '</div>'
             : '';
+
         const cardClass = 'comment-card' + (c.isReply ? ' is-reply' : '');
 
         return '<div class="' + cardClass + '" data-platform="' + c.platform + '"' + (c.isReply ? ' data-reply="1"' : '') + '>' +
+            // Single compact header: avatar · author · platform · time · thumb · sentiment
             '<div class="comment-card-header">' +
                 avatarHtml +
                 '<div class="comment-header-info">' +
-                    '<div class="comment-author-row">' +
-                        (function(){
-                            // Build a click-through to the actual content on the platform when we have an ID.
-                            // For FB anonymous commenters this lets Taylor identify them manually on Facebook.
-                            var url = '';
-                            if (c.platform === 'fb' && c.commentId) {
-                                url = 'https://www.facebook.com/' + encodeURIComponent(c.commentId);
-                            } else if (c.platform === 'fb' && c.postId) {
-                                url = 'https://www.facebook.com/' + encodeURIComponent(c.postId);
-                            }
-                            var nameHtml = escapeHtml(c.author);
-                            return url
-                                ? '<a class="comment-author" href="' + url + '" target="_blank" rel="noopener" style="text-decoration:none; color:inherit;">' + nameHtml + '</a>'
-                                : '<span class="comment-author">' + nameHtml + '</span>';
-                        })() +
-                        '<span class="comment-platform-tag ' + c.platform + '">' + (platLabel[c.platform] || '') + '</span>' +
-                    '</div>' +
-                    '<div class="comment-time" title="' + escapeHtml(fullTime) + '">' + ago + (fullTime ? ' &middot; ' + fullTime : '') + '</div>' +
+                    authorHtml +
+                    '<span class="comment-platform-tag ' + c.platform + '">' + (platLabel[c.platform] || '') + '</span>' +
+                    '<span class="comment-time" title="' + escapeHtml(fullTime) + '">' + ago + '</span>' +
                 '</div>' +
+                thumbInlineHtml +
                 '<div class="comment-header-sentiment">' +
                     '<div class="comment-sentiment-badge ' + labelClass + aiBadgeClass + '"' +
                         (tooltip ? ' data-tt="' + escapeHtml(tooltip) + '"' : '') + '>' +
@@ -7221,14 +7309,68 @@ function renderCommentFeed(comments) {
                     '</div>' +
                 '</div>' +
             '</div>' +
-            postPreviewHtml +
+            // Reply context (if applicable)
             replyChipHtml +
-            '<div class="comment-body">' +
-                '<div class="comment-text">' + escapeHtml(c.text || '(no text)') + '</div>' +
-                (likesHtml ? '<div class="comment-footer">' + likesHtml + '</div>' : '') +
-            '</div>' +
+            // Comment text — the star
+            '<div class="comment-text">' + escapeHtml(c.text || '(no text)') + '</div>' +
+            // Post context + likes (subtle bottom line)
+            postContextHtml +
         '</div>';
     }).join('');
+}
+
+// ============================================================
+// CUSTOMER COMMENT TICKER
+// ============================================================
+// Populates the ESPN-style scrolling ticker with recent positive comments.
+// Filters for comments with score ≥ 65 OR containing storm/outage keywords
+// (storm response content tends to generate heartfelt responses).
+// Called by renderAll() after comments are loaded.
+
+function renderCommentTicker(allComments) {
+    const belt = document.getElementById('commentTickerBelt');
+    const wrap = document.getElementById('commentTickerWrap');
+    if (!belt || !wrap || !allComments || !allComments.length) return;
+
+    const STORM_KEYWORDS = /\boutage\b|\bstorm\b|\bpower\s*(out|back|restor)\w*|\bcrewm?\b|\blinemanm?\b|\bcrew\b|\bprepare\b|\bsafe\b|\bwarm\b|\bthank\b|\bamazing\b|\bheroes?\b|\bgreat\s*job\b|\bresponse\b/i;
+    const platLabel = { fb: 'Facebook', ig: 'Instagram', li: 'LinkedIn', yt: 'YouTube' };
+
+    // Score all comments and prefer high-scoring ones with meaningful text
+    const scored = allComments
+        .filter(c => c.text && c.text.trim().length > 15)
+        .map(c => {
+            const s = commentScore(c);
+            const isStorm = STORM_KEYWORDS.test(c.text || '');
+            return { c, score: s.score, isStorm };
+        })
+        .filter(x => x.score >= 62 || x.isStorm)
+        .sort((a, b) => (b.isStorm ? 10 : 0) + b.score - (a.isStorm ? 10 : 0) - a.score);
+
+    if (scored.length < 3) { wrap.style.display = 'none'; return; }
+
+    // Take up to 20, shuffle lightly
+    const picks = scored.slice(0, 20).sort(() => Math.random() - 0.45);
+
+    const itemHtml = picks.map(({ c }) => {
+        const quote = c.text.length > 110 ? c.text.substring(0, 108).trimEnd() + '…' : c.text;
+        const plat = platLabel[c.platform] || c.platform;
+        return '<div class="comment-ticker-item">' +
+            '<span class="comment-ticker-quote">“' + escapeHtml(quote) + '”</span>' +
+            '<span class="comment-ticker-author">— ' + escapeHtml(c.author || 'Community Member') + '</span>' +
+            '<span class="comment-ticker-platform">' + escapeHtml(plat) + '</span>' +
+            '<span class="comment-ticker-sep">|</span>' +
+        '</div>';
+    }).join('');
+
+    // Duplicate the belt so the scroll loops seamlessly
+    belt.innerHTML = itemHtml + itemHtml;
+
+    // Adjust scroll speed based on content length (wider = slower)
+    const totalChars = picks.reduce((n, { c }) => n + (c.text || '').length, 0);
+    const duration = Math.max(40, Math.min(100, totalChars * 0.35));
+    belt.style.animationDuration = duration + 's';
+
+    wrap.style.display = 'block';
 }
 
 // ============================================================
