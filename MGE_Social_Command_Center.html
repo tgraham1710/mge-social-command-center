@@ -1017,15 +1017,47 @@
         .comment-feed::-webkit-scrollbar { width: 5px; }
         .comment-feed::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
 
-        /* ── Comment cards — compact single-pass design ───────────────────── */
+        /* ── Comment cards — two-column layout with optional right thumbnail panel ── */
         .comment-card {
-            background: #FFFFFF; border-radius: 8px; padding: 8px 11px 7px;
+            background: #FFFFFF; border-radius: 8px;
             border: 1px solid #E9EEF4; transition: border-color 0.15s, box-shadow 0.15s;
-            flex-shrink: 0;
+            flex-shrink: 0; overflow: hidden;
+            display: grid; grid-template-columns: 1fr;
         }
+        .comment-card.has-thumb { grid-template-columns: 1fr 108px; }
         .comment-card:hover { border-color: #C8D5E3; box-shadow: 0 1px 8px rgba(0,0,0,0.05); }
 
-        /* Single header row: avatar · author · platform · time · likes · sentiment */
+        /* Main content column */
+        .comment-card-main { padding: 8px 10px 7px; min-width: 0; }
+
+        /* Right thumbnail panel — full card height, image fills it */
+        .comment-card-right {
+            position: relative; overflow: hidden;
+            border-left: 1px solid #F0F4F8;
+            background: #F1F5F9;
+        }
+        .comment-card-right-img {
+            width: 100%; height: 100%; object-fit: cover; display: block;
+        }
+        /* Gradient overlay at bottom of right panel for text legibility */
+        .comment-card-right-overlay {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.3) 55%, transparent 100%);
+            padding: 6px 7px 5px;
+        }
+        .comment-card-right-copy {
+            font-size: 9.5px; color: rgba(255,255,255,0.82); line-height: 1.3;
+            overflow: hidden; display: -webkit-box;
+            -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            margin-bottom: 3px;
+        }
+        .comment-card-right-likes {
+            display: flex; align-items: center; gap: 3px;
+            font-size: 10.5px; color: rgba(255,255,255,0.92); font-weight: 600;
+        }
+        .comment-card-right-likes svg { width: 10px; height: 10px; fill: #EF4444; }
+
+        /* Single header row: avatar · author · platform · time · sentiment */
         .comment-card-header {
             display: flex; align-items: center; gap: 7px;
             margin-bottom: 5px; flex-wrap: nowrap;
@@ -1052,12 +1084,7 @@
         .comment-platform-tag.li { background: #EFF6FF; color: #0A66C2; }
         .comment-platform-tag.yt { background: #FEF2F2; color: #FF0000; }
         .comment-time { font-size: 10.5px; color: #A8B8CC; }
-        /* Likes inline in header row */
-        .comment-likes-inline {
-            display: flex; align-items: center; gap: 3px;
-            font-size: 11px; color: #94A3B8; font-weight: 500; white-space: nowrap;
-        }
-        .comment-likes-inline svg { width: 11px; height: 11px; fill: #EF4444; }
+        .comment-likes-inline { display: none; } /* likes moved to right panel */
 
         /* Compact sentiment badge */
         .comment-sentiment-badge {
@@ -1087,16 +1114,14 @@
             word-wrap: break-word; font-weight: 500;
         }
 
-        /* Post context — subtle "Re:" line below the comment, no thumbnail */
+        /* Post context line (used when no image panel) */
         .comment-post-context {
             margin-top: 5px;
             font-size: 10.5px; color: #A8B8CC; line-height: 1.35;
             overflow: hidden; display: -webkit-box;
             -webkit-line-clamp: 1; -webkit-box-orient: vertical;
         }
-        .comment-post-context-label {
-            font-weight: 600; margin-right: 3px; color: #B8C5D4;
-        }
+        .comment-post-context-label { font-weight: 600; margin-right: 3px; color: #B8C5D4; }
 
         /* Global tooltip element (one for the whole page) — positioned via JS */
         #mge-tt {
@@ -1887,89 +1912,68 @@
         /* Legacy category tab class kept for backward compat (no longer rendered) */
         .posts-category-tabs { display: none; }
 
-        /* ── Customer Comment Ticker ──────────────────────────────────────── */
+        /* ── Community Voices Ticker ──────────────────────────────────────── */
         .comment-ticker-wrap {
-            max-width: 1600px; margin: 0 auto 0; padding: 0 36px 20px;
+            max-width: 1600px; margin: 0 auto; padding: 0 36px 20px;
         }
         .comment-ticker-shell {
-            background: linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #003B71 100%);
-            border-radius: 14px;
+            background: #fff;
+            border-radius: 12px;
             overflow: hidden;
-            position: relative;
-            box-shadow: 0 8px 32px rgba(15,23,42,0.28), 0 0 0 1px rgba(255,255,255,0.06);
-        }
-        /* Animated left-edge glow bar */
-        .comment-ticker-shell::before {
-            content: '';
-            position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-            background: linear-gradient(180deg, #00A651, #00D1FF, #00A651);
-            background-size: 100% 200%;
-            animation: tickerRailFlow 3s linear infinite;
-        }
-        @keyframes tickerRailFlow {
-            0%   { background-position: 0% 0%; }
-            100% { background-position: 0% 200%; }
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
         }
         .comment-ticker-header {
-            display: flex; align-items: center; gap: 14px;
-            padding: 11px 20px 10px 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.07);
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 18px 9px;
+            border-bottom: 1px solid #F1F5F9;
         }
-        .comment-ticker-label {
-            font-size: 10px; font-weight: 900; letter-spacing: 1.6px;
-            text-transform: uppercase; color: #00D1FF;
-            white-space: nowrap; flex-shrink: 0;
+        /* Small green accent dot — quiet signal without "LIVE" text */
+        .comment-ticker-header::before {
+            content: '';
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #00A651;
+            flex-shrink: 0;
+            box-shadow: 0 0 6px rgba(0,166,81,0.5);
+            animation: tickerDotPulse 2.4s ease-in-out infinite;
         }
-        .comment-ticker-divider {
-            width: 1px; height: 18px; background: rgba(255,255,255,0.15); flex-shrink: 0;
+        @keyframes tickerDotPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.45; }
         }
         .comment-ticker-title {
-            font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.85);
-            letter-spacing: 0.02em; flex: 1;
+            font-size: 13px; font-weight: 700; color: #1B2559;
+            letter-spacing: -0.01em; flex: 1;
         }
-        .comment-ticker-live {
-            display: inline-flex; align-items: center; gap: 5px;
-            font-size: 10px; font-weight: 800; letter-spacing: 0.8px;
-            text-transform: uppercase; color: #00A651; flex-shrink: 0;
+        .comment-ticker-count {
+            font-size: 11px; color: #94A3B8; font-weight: 500;
         }
-        .comment-ticker-live::before {
-            content: '';
-            width: 7px; height: 7px; border-radius: 50%;
-            background: #00A651;
-            box-shadow: 0 0 8px rgba(0,166,81,0.9);
-            animation: tickerLivePulse 1.5s ease-in-out infinite;
-        }
-        @keyframes tickerLivePulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-        /* Scrolling belt */
+        /* Scrolling track */
         .comment-ticker-track {
             overflow: hidden;
-            padding: 0;
             position: relative;
-            height: 48px;
+            height: 62px;
         }
-        /* Fade masks on left and right edges */
+        /* Fade masks */
         .comment-ticker-track::before,
         .comment-ticker-track::after {
             content: '';
-            position: absolute; top: 0; bottom: 0; width: 80px; z-index: 2;
+            position: absolute; top: 0; bottom: 0; width: 60px; z-index: 2;
             pointer-events: none;
         }
         .comment-ticker-track::before {
             left: 0;
-            background: linear-gradient(to right, #0F172A, transparent);
+            background: linear-gradient(to right, #fff, transparent);
         }
         .comment-ticker-track::after {
             right: 0;
-            background: linear-gradient(to left, #003B71, transparent);
+            background: linear-gradient(to left, #fff, transparent);
         }
         .comment-ticker-belt {
             display: flex; align-items: center;
             height: 100%;
             white-space: nowrap;
-            animation: tickerScroll 60s linear infinite;
+            animation: tickerScroll 28s linear infinite;
             will-change: transform;
         }
         .comment-ticker-belt:hover { animation-play-state: paused; }
@@ -1978,27 +1982,60 @@
             100% { transform: translateX(-50%); }
         }
         .comment-ticker-item {
-            display: inline-flex; align-items: center; gap: 10px;
-            padding: 0 28px 0 0;
+            display: inline-flex; align-items: baseline; gap: 8px;
+            padding: 0 36px 0 0;
         }
         .comment-ticker-quote {
-            font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.9);
-            font-style: italic; letter-spacing: 0.01em;
+            font-size: 13.5px; font-weight: 500; color: #334155;
+            font-style: italic;
         }
         .comment-ticker-author {
-            font-size: 11px; font-weight: 700; color: #00D1FF;
+            font-size: 11px; font-weight: 700; color: #006553;
             white-space: nowrap; flex-shrink: 0;
         }
         .comment-ticker-platform {
-            font-size: 9px; font-weight: 800; letter-spacing: 0.5px;
-            text-transform: uppercase; color: rgba(255,255,255,0.4);
+            font-size: 9.5px; font-weight: 700; letter-spacing: 0.4px;
+            text-transform: uppercase; color: #94A3B8;
         }
         .comment-ticker-sep {
-            color: rgba(255,255,255,0.2);
-            font-size: 20px; font-weight: 100;
-            padding: 0 6px 0 0;
+            color: #CBD5E1;
+            font-size: 18px; font-weight: 300;
+            padding: 0 4px 0 0;
             flex-shrink: 0;
         }
+
+        /* AHS Over Time — collapsible section */
+        .ahs-chart-section {
+            max-width: 1600px; margin: 0 auto; padding: 0 36px 24px;
+            overflow: hidden;
+            max-height: 0;
+            opacity: 0;
+            transition: max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease, padding 0.35s ease;
+            padding-bottom: 0;
+        }
+        .ahs-chart-section.expanded {
+            max-height: 520px;
+            opacity: 1;
+            padding-bottom: 24px;
+        }
+        /* AHS main card: clickable to reveal chart */
+        .ahs-card-clickable {
+            cursor: pointer;
+            transition: box-shadow 0.2s;
+        }
+        .ahs-card-clickable:hover { box-shadow: 0 4px 16px rgba(0,59,113,0.10); }
+        .ahs-expand-hint {
+            display: flex; align-items: center; justify-content: center;
+            gap: 5px; margin-top: 8px;
+            font-size: 11px; color: #94A3B8; font-weight: 500;
+            user-select: none;
+        }
+        .ahs-expand-hint .chevron {
+            font-size: 12px; transition: transform 0.35s ease; display: inline-block;
+        }
+        .ahs-card-clickable.ahs-open .ahs-expand-hint .chevron { transform: rotate(180deg); }
+        .ahs-card-clickable.ahs-open .ahs-expand-hint-text::after { content: 'Hide chart'; }
+        .ahs-card-clickable:not(.ahs-open) .ahs-expand-hint-text::after { content: 'Show health over time'; }
         .posts-feed-section { position: relative; overflow: hidden; }
         .posts-scroll-btn {
             position: absolute; top: 50%; transform: translateY(-50%);
@@ -3000,18 +3037,8 @@
         .mention-card.brand-xcel { border-left: 6px solid #0071CE; }
         .mention-card.brand-topical { border-left: 6px solid #7C3AED; }
 
-        /* Brand badge pill shown on card */
-        .mention-brand-badge {
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 4px 10px; border-radius: 999px;
-            font-size: 11px; font-weight: 800; text-transform: uppercase;
-            letter-spacing: 0.6px; color: #fff;
-        }
-        .mention-brand-badge.brand-mge { background: #006553; }
-        .mention-brand-badge.brand-alliant { background: #0A3F67; }
-        .mention-brand-badge.brand-we_energies { background: #DA291C; }
-        .mention-brand-badge.brand-xcel { background: #0071CE; }
-        .mention-brand-badge.brand-topical { background: #7C3AED; }
+        /* Brand badge pill — hidden; brand is communicated via border-left color and filter chips */
+        .mention-brand-badge { display: none; }
 
         /* Related / grouped mentions */
         .mention-related-toggle {
@@ -3165,7 +3192,7 @@
         }
 
         .mention-title {
-            font-size: 14px; font-weight: 700; color: #1B2559;
+            font-size: 15.5px; font-weight: 700; color: #1B2559;
             margin-bottom: 3px; line-height: 1.3;
             letter-spacing: -0.01em;
         }
@@ -3536,8 +3563,8 @@
     <!-- LEFT COLUMN: Comments + Sentiment -->
     <div class="left-col">
 
-        <!-- Overall Audience Health Score (Hero) -->
-        <div class="card" style="margin-bottom:24px; border: 1px solid #E2E8F0; background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);">
+        <!-- Overall Audience Health Score (Hero) — click to reveal Over Time chart -->
+        <div class="card ahs-card-clickable" id="ahsMainCard" onclick="toggleAHSChart(event)" style="margin-bottom:24px; border: 1px solid #E2E8F0; background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);">
             <div class="card-title" style="text-align:center; font-size: 13px;">Audience Health Score<button type="button" class="ahs-info-btn" onclick="showAhsBreakdown()" aria-label="View calculation breakdown" title="View exact calculation">i</button></div>
             <div class="sentiment-gauge">
                 <div class="gauge-hero-bg"></div>
@@ -3598,6 +3625,11 @@
                 <div id="sentBlockIG"><div id="sentGaugeIG"><div id="sentArcIG"></div><div id="sentIG"></div></div><div id="sentTierIG"></div><div id="sentMetaIG"></div></div>
                 <div id="sentBlockLI"><div id="sentGaugeLI"><div id="sentArcLI"></div><div id="sentLI"></div></div><div id="sentTierLI"></div><div id="sentMetaLI"></div></div>
                 <div id="sentBlockYT"><div id="sentGaugeYT"><div id="sentArcYT"></div><div id="sentYT"></div></div><div id="sentTierYT"></div><div id="sentMetaYT"></div></div>
+            </div>
+            <!-- Expand hint — communicates that the card is clickable -->
+            <div class="ahs-expand-hint">
+                <span class="ahs-expand-hint-text"></span>
+                <span class="chevron">&#8964;</span>
             </div>
         </div>
 
@@ -3742,14 +3774,12 @@
     </div>
 </div>
 
-<!-- Customer Comment Ticker — "What Our Customers Are Saying About Us" -->
+<!-- Community Voices Ticker -->
 <div class="comment-ticker-wrap" id="commentTickerWrap" style="display:none;">
     <div class="comment-ticker-shell">
         <div class="comment-ticker-header">
-            <span class="comment-ticker-label">Live</span>
-            <div class="comment-ticker-divider"></div>
-            <span class="comment-ticker-title">What Our Customers Are Saying About Us</span>
-            <span class="comment-ticker-live">Social</span>
+            <span class="comment-ticker-title">Community Voices</span>
+            <span class="comment-ticker-count" id="commentTickerCount"></span>
         </div>
         <div class="comment-ticker-track">
             <div class="comment-ticker-belt" id="commentTickerBelt"></div>
@@ -3757,8 +3787,8 @@
     </div>
 </div>
 
-<!-- Full-width: Audience Health Over Time -->
-<div style="max-width: 1600px; margin: 0 auto; padding: 0 36px 24px;">
+<!-- Full-width: Audience Health Over Time (collapsed by default, revealed by clicking AHS card) -->
+<div class="ahs-chart-section" id="ahsChartSection">
     <div class="card">
         <div class="timeline-header">
             <div class="card-title" style="margin-bottom:0;">Audience Health Over Time <span class="timeline-sub">last 365 days &middot; daily snapshots</span></div>
@@ -7255,10 +7285,8 @@ function renderCommentFeed(comments) {
             ? '<div class="comment-avatar ' + c.platform + '"><img src="' + escapeHtml(c.authorImage) + '" alt="" onerror="this.parentElement.innerHTML=\'' + (platMap[c.platform] || '?') + '\'"></div>'
             : '<div class="comment-avatar ' + c.platform + '">' + (platMap[c.platform] || '?') + '</div>';
 
-        // Tiny thumbnail in header row (28px square) — visual post anchor without the bulk
-        const thumbInlineHtml = c.postImage
-            ? '<img src="' + escapeHtml(c.postImage) + '" alt="" style="width:26px;height:26px;border-radius:4px;object-fit:cover;flex-shrink:0;border:1px solid #E2E8F0;" onerror="this.style.display=\'none\'">'
-            : '';
+        // No inline thumb in header — thumbnail lives in the right panel
+        const thumbInlineHtml = '';
 
         // Author link (FB: click through to comment or post)
         const authorUrl = (c.platform === 'fb' && c.commentId)
@@ -7268,19 +7296,26 @@ function renderCommentFeed(comments) {
             ? '<a class="comment-author" href="' + authorUrl + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;">' + escapeHtml(c.author) + '</a>'
             : '<span class="comment-author">' + escapeHtml(c.author) + '</span>';
 
-        // Likes — shown inline after post context (bottom muted line)
-        const likesInlineHtml = c.likes
-            ? '<span class="comment-likes-inline" style="margin-left:auto;flex-shrink:0;">' + svgHeart + ' ' + c.likes + '</span>'
+        // Right panel: full-height thumbnail with post copy + likes overlaid at bottom
+        // Only shown when c.postImage exists; falls back to text line when no image.
+        const hasThumb = !!c.postImage;
+        const rightPanelHtml = hasThumb
+            ? '<div class="comment-card-right">' +
+                '<img class="comment-card-right-img" src="' + escapeHtml(c.postImage) + '" alt="" onerror="this.closest(\'.comment-card\').classList.remove(\'has-thumb\');this.closest(\'.comment-card-right\').style.display=\'none\'">' +
+                '<div class="comment-card-right-overlay">' +
+                    (c.postContext ? '<div class="comment-card-right-copy">' + escapeHtml(c.postContext.substring(0, 80)) + '</div>' : '') +
+                    (c.likes ? '<div class="comment-card-right-likes">' + svgHeart + ' ' + c.likes + '</div>' : '') +
+                '</div>' +
+              '</div>'
             : '';
 
-        // Post context — single muted line at bottom ("Re: post copy...")
-        const postContextHtml = c.postContext
-            ? '<div class="comment-post-context" style="display:flex;align-items:center;gap:6px;">' +
-                '<span class="comment-post-context-label">Re:</span>' +
-                '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">' + escapeHtml(c.postContext.substring(0, 120)) + '</span>' +
-                likesInlineHtml +
+        // Fallback post context line for cards without an image
+        const postContextHtml = (!hasThumb && c.postContext)
+            ? '<div class="comment-post-context"><span class="comment-post-context-label">Re:</span>' +
+                escapeHtml(c.postContext.substring(0, 120)) +
+                (c.likes ? ' &nbsp;' + svgHeart.replace('viewBox', 'style="width:10px;height:10px;fill:#EF4444;vertical-align:middle;" viewBox') + ' ' + c.likes : '') +
               '</div>'
-            : (c.likes ? '<div style="display:flex;justify-content:flex-end;margin-top:4px;">' + likesInlineHtml + '</div>' : '');
+            : (!hasThumb && c.likes ? '<div style="font-size:10.5px;color:#94A3B8;margin-top:4px;">' + svgHeart.replace('viewBox', 'style="width:10px;height:10px;fill:#EF4444;vertical-align:middle;" viewBox') + ' ' + c.likes + '</div>' : '');
 
         // Reply chip
         const replyChipHtml = c.isReply
@@ -7289,32 +7324,33 @@ function renderCommentFeed(comments) {
               '>↳ Replying to ' + escapeHtml(c.parentAuthor || 'a comment') + '</div>'
             : '';
 
-        const cardClass = 'comment-card' + (c.isReply ? ' is-reply' : '');
+        const cardClass = 'comment-card' + (c.isReply ? ' is-reply' : '') + (hasThumb ? ' has-thumb' : '');
 
         return '<div class="' + cardClass + '" data-platform="' + c.platform + '"' + (c.isReply ? ' data-reply="1"' : '') + '>' +
-            // Single compact header: avatar · author · platform · time · thumb · sentiment
-            '<div class="comment-card-header">' +
-                avatarHtml +
-                '<div class="comment-header-info">' +
-                    authorHtml +
-                    '<span class="comment-platform-tag ' + c.platform + '">' + (platLabel[c.platform] || '') + '</span>' +
-                    '<span class="comment-time" title="' + escapeHtml(fullTime) + '">' + ago + '</span>' +
-                '</div>' +
-                thumbInlineHtml +
-                '<div class="comment-header-sentiment">' +
-                    '<div class="comment-sentiment-badge ' + labelClass + aiBadgeClass + '"' +
-                        (tooltip ? ' data-tt="' + escapeHtml(tooltip) + '"' : '') + '>' +
-                        '<span class="score-num">' + s.score + '</span>' +
-                        '<span class="score-label">' + escapeHtml(s.label) + '</span>' +
+            // Left: main content column
+            '<div class="comment-card-main">' +
+                // Header: avatar · author · platform · time · sentiment
+                '<div class="comment-card-header">' +
+                    avatarHtml +
+                    '<div class="comment-header-info">' +
+                        authorHtml +
+                        '<span class="comment-platform-tag ' + c.platform + '">' + (platLabel[c.platform] || '') + '</span>' +
+                        '<span class="comment-time" title="' + escapeHtml(fullTime) + '">' + ago + '</span>' +
+                    '</div>' +
+                    '<div class="comment-header-sentiment">' +
+                        '<div class="comment-sentiment-badge ' + labelClass + aiBadgeClass + '"' +
+                            (tooltip ? ' data-tt="' + escapeHtml(tooltip) + '"' : '') + '>' +
+                            '<span class="score-num">' + s.score + '</span>' +
+                            '<span class="score-label">' + escapeHtml(s.label) + '</span>' +
+                        '</div>' +
                     '</div>' +
                 '</div>' +
+                replyChipHtml +
+                '<div class="comment-text">' + escapeHtml(c.text || '(no text)') + '</div>' +
+                postContextHtml +
             '</div>' +
-            // Reply context (if applicable)
-            replyChipHtml +
-            // Comment text — the star
-            '<div class="comment-text">' + escapeHtml(c.text || '(no text)') + '</div>' +
-            // Post context + likes (subtle bottom line)
-            postContextHtml +
+            // Right: full-height thumbnail panel (if post has an image)
+            rightPanelHtml +
         '</div>';
     }).join('');
 }
@@ -7365,12 +7401,32 @@ function renderCommentTicker(allComments) {
     // Duplicate the belt so the scroll loops seamlessly
     belt.innerHTML = itemHtml + itemHtml;
 
-    // Adjust scroll speed based on content length (wider = slower)
+    // Adjust scroll speed — faster base, scales with content but stays snappy
     const totalChars = picks.reduce((n, { c }) => n + (c.text || '').length, 0);
-    const duration = Math.max(40, Math.min(100, totalChars * 0.35));
+    const duration = Math.max(14, Math.min(32, totalChars * 0.095));
     belt.style.animationDuration = duration + 's';
 
+    // Update count label
+    const countEl = document.getElementById('commentTickerCount');
+    if (countEl) countEl.textContent = picks.length + ' community voices';
+
     wrap.style.display = 'block';
+}
+
+// Toggle the Audience Health Over Time chart section
+function toggleAHSChart(e) {
+    // Don't trigger when clicking the info "i" button
+    if (e && e.target && e.target.classList.contains('ahs-info-btn')) return;
+    const card = document.getElementById('ahsMainCard');
+    const section = document.getElementById('ahsChartSection');
+    if (!card || !section) return;
+    const isOpen = card.classList.toggle('ahs-open');
+    if (isOpen) {
+        section.classList.add('expanded');
+        section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+        section.classList.remove('expanded');
+    }
 }
 
 // ============================================================
