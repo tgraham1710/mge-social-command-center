@@ -1979,7 +1979,7 @@
             flex-direction: column;
             justify-content: center;
             gap: 10px;
-            width: 300px;
+            width: 240px;
             flex-shrink: 0;
             min-height: 110px;
             max-height: 136px;
@@ -2002,7 +2002,7 @@
             word-break: break-word;
             overflow: hidden;
             display: -webkit-box;
-            -webkit-line-clamp: 3;
+            -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             margin: 0;
         }
@@ -7407,25 +7407,31 @@ function renderCommentTicker(allComments) {
 
     const platLabel = { fb: 'Facebook', ig: 'Instagram', li: 'LinkedIn', yt: 'YouTube' };
 
-    // Only show comments with score ≥ 80 (high-quality positive voices)
+    // Show comments with score ≥ 65 — captures genuine positives without noise
     const picks = allComments
-        .filter(c => c.text && c.text.trim().length > 20)
+        .filter(c => c.text && c.text.trim().length > 15)
         .map(c => ({ c, score: commentScore(c).score }))
-        .filter(x => x.score >= 80)
+        .filter(x => x.score >= 65)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 24)
-        .sort(() => Math.random() - 0.45); // light shuffle so it's not always the same order
+        .slice(0, 40)
+        .sort(() => Math.random() - 0.45); // light shuffle
 
     if (picks.length < 2) { wrap.style.display = 'none'; return; }
 
+    // Platform accent colors for the left border
+    const platColor = { fb: '#1877F2', ig: '#E1306C', li: '#0A66C2', yt: '#FF0000' };
+
     const itemHtml = picks.map(({ c }) => {
         const plat = platLabel[c.platform] || c.platform;
-        return '<div class=”comment-ticker-item”>' +
-            '<div class=”comment-ticker-quote”>“' + escapeHtml(c.text) + '”</div>' +
+        const color = platColor[c.platform] || '#006553';
+        // Truncate to ~90 chars so each card is a quick readable snippet
+        const snippet = c.text.length > 92 ? c.text.substring(0, 90).trimEnd() + '…' : c.text;
+        return '<div class=”comment-ticker-item” style=”border-left-color:' + color + '”>' +
+            '<div class=”comment-ticker-quote”>”' + escapeHtml(snippet) + '”</div>' +
             '<div class=”comment-ticker-byline”>' +
                 '<span class=”comment-ticker-author”>' + escapeHtml(c.author || 'Community Member') + '</span>' +
                 '<span class=”comment-ticker-dot”></span>' +
-                '<span class=”comment-ticker-platform”>' + escapeHtml(plat) + '</span>' +
+                '<span class=”comment-ticker-platform” style=”color:' + color + '”>' + escapeHtml(plat) + '</span>' +
             '</div>' +
         '</div>';
     }).join('');
