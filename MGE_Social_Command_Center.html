@@ -1956,61 +1956,66 @@
             background: linear-gradient(to left, #FAFBFC 20%, transparent);
         }
         .comment-ticker-belt {
-            display: inline-flex;
-            align-items: stretch;
-            height: 100%;
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: center;
+            height: 164px;
+            gap: 14px;
+            padding: 12px 0;
             animation: tickerScroll 22s linear infinite;
             will-change: transform;
-            padding: 16px 0;
-            gap: 0;
+            box-sizing: border-box;
         }
         .comment-ticker-belt:hover { animation-play-state: paused; }
         @keyframes tickerScroll {
             0%   { transform: translateX(0); }
             100% { transform: translateX(-50%); }
         }
-        /* Each item is a card-style block */
+        /* Each item: fixed-width card with green left accent */
         .comment-ticker-item {
-            display: inline-flex;
+            display: flex;
             flex-direction: column;
             justify-content: center;
-            gap: 8px;
-            flex-shrink: 0;
-            width: 420px;
-            padding: 14px 20px 14px 22px;
-            margin: 0 10px;
+            gap: 10px;
+            flex: 0 0 400px;
+            min-height: 100px;
+            padding: 16px 20px 16px 20px;
             background: #fff;
             border-radius: 10px;
-            border: 1px solid #E9EEF4;
-            border-left: 3px solid #006553;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #E2E8F0;
+            border-left: 4px solid #006553;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            box-sizing: border-box;
         }
         .comment-ticker-quote {
-            font-size: 13.5px;
+            font-size: 13px;
             font-weight: 500;
             color: #1E293B;
             font-style: italic;
-            line-height: 1.5;
+            line-height: 1.55;
             white-space: normal;
-            word-wrap: break-word;
+            word-break: break-word;
             overflow: hidden;
             display: -webkit-box;
             -webkit-line-clamp: 3;
             -webkit-box-orient: vertical;
+            margin: 0;
         }
         .comment-ticker-byline {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
+            flex-shrink: 0;
         }
         .comment-ticker-author {
-            font-size: 11.5px;
+            font-size: 11px;
             font-weight: 700;
             color: #006553;
             white-space: nowrap;
         }
         .comment-ticker-dot {
-            width: 3px; height: 3px;
+            width: 3px;
+            height: 3px;
             border-radius: 50%;
             background: #CBD5E1;
             flex-shrink: 0;
@@ -2018,9 +2023,10 @@
         .comment-ticker-platform {
             font-size: 10px;
             font-weight: 700;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
             text-transform: uppercase;
             color: #94A3B8;
+            white-space: nowrap;
         }
         .comment-ticker-sep { display: none; }
 
