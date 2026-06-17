@@ -10,6 +10,15 @@ const stories = require('./stories');
 const app = express();
 app.use(express.json());
 
+// Keep the process alive on unhandled errors (e.g. ECONNRESET on HTTP/2 streams
+// from the Anthropic API). Without these, a transient network reset kills the server.
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught exception (server kept alive):', err.message, err.stack || '');
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Unhandled promise rejection (server kept alive):', reason);
+});
+
 function loadConfig() {
   const fileConfig = (() => {
     try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')); }
