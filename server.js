@@ -323,7 +323,7 @@ app.get('/api/facebook/posts', async (req, res) => {
   // NOTE: Meta deprecated ALL post_impressions_* metrics between 2026-05-04 and 2026-06-17.
   // Including any deprecated metric in insights.metric() silently kills the ENTIRE posts response (#100).
   // Re-run /api/facebook/posts-insights-diag periodically to catch future deprecations.
-  let url = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,full_picture,permalink_url,status_type,shares,reactions.summary(true),reactions.type(LIKE).limit(0).summary(total_count).as(reactions_like),reactions.type(LOVE).limit(0).summary(total_count).as(reactions_love),reactions.type(WOW).limit(0).summary(total_count).as(reactions_wow),reactions.type(HAHA).limit(0).summary(total_count).as(reactions_haha),reactions.type(SAD).limit(0).summary(total_count).as(reactions_sad),reactions.type(ANGRY).limit(0).summary(total_count).as(reactions_angry),reactions.type(CARE).limit(0).summary(total_count).as(reactions_care),comments.summary(true),insights.metric(post_clicks,post_video_views)&limit=50&access_token=${pageAccessToken}`;
+  let url = `${META_BASE}/${pageId}/posts?fields=id,message,created_time,full_picture,permalink_url,status_type,shares,reactions.summary(true),reactions.type(LIKE).limit(0).summary(total_count).as(reactions_like),reactions.type(LOVE).limit(0).summary(total_count).as(reactions_love),reactions.type(WOW).limit(0).summary(total_count).as(reactions_wow),reactions.type(HAHA).limit(0).summary(total_count).as(reactions_haha),reactions.type(SAD).limit(0).summary(total_count).as(reactions_sad),reactions.type(ANGRY).limit(0).summary(total_count).as(reactions_angry),reactions.type(CARE).limit(0).summary(total_count).as(reactions_care),comments.summary(true),insights.metric(post_clicks,post_video_views,post_media_view)&limit=50&access_token=${pageAccessToken}`;
   url += dateRangeParams(req);
   const data = await apiFetch(url);
   res.json(data);
@@ -345,6 +345,7 @@ app.get('/api/facebook/posts-insights-diag', async (req, res) => {
     'post_impressions_organic_unique',
     'post_impressions_paid',
     'post_impressions_paid_unique',
+    'post_media_view',            // NEW (2026-06-15): replacement for post_impressions_unique (post-level reach)
     'post_engaged_users',
     'post_clicks',
     'post_clicks_unique',
@@ -468,10 +469,14 @@ app.get('/api/facebook/all-comments', async (req, res) => {
 app.get('/api/facebook/insights', async (req, res) => {
   const { pageAccessToken, pageId } = config.facebook || {};
   if (!pageAccessToken || !pageId) return res.json({ error: true, message: 'Facebook not configured' });
-  // Curated to ONLY metrics confirmed working via /api/facebook/insights-diag (2026-05-04).
-  // Meta deprecated: page_impressions, page_engaged_users, page_fan_adds, page_fan_adds_unique, page_followers.
-  // Total impressions now derived per-post from /facebook/posts insights expansion.
-  const metrics = 'page_impressions_unique,page_post_engagements,page_views_total,page_video_views,page_video_views_unique';
+  // Curated to ONLY metrics confirmed working (updated 2026-06-17 after Meta's second deprecation wave).
+  // Wave 1 (2026-05-04): deprecated page_impressions, page_engaged_users, page_fan_adds, page_fan_adds_unique, page_followers.
+  // Wave 2 (2026-06-15): deprecated ALL page_impressions_unique and page_video_views_unique variants.
+  //   Replacement for page_impressions_unique (Reach): page_media_view ("Total Unique Media Views").
+  //   page_video_views_unique discontinued — no direct replacement; page_media_view covers unique viewers across all formats.
+  //   Sprout Social, Hootsuite, Sprinklr all confirmed remapping to page_media_view.
+  // Re-run /api/facebook/insights-diag periodically to catch future deprecations.
+  const metrics = 'page_media_view,page_post_engagements,page_views_total,page_video_views';
   const data = await apiFetch(`${META_BASE}/${pageId}/insights?metric=${metrics}&period=day&date_preset=last_30d&access_token=${pageAccessToken}`);
   res.json(data);
 });
@@ -483,17 +488,18 @@ app.get('/api/facebook/insights-diag', async (req, res) => {
   if (!pageAccessToken || !pageId) return res.json({ error: true, message: 'Facebook not configured' });
   // Candidates — anything currently or recently used in the dashboard, plus likely replacements
   const candidates = [
-    'page_impressions',           // total impressions
-    'page_impressions_unique',    // reach (unique people) — possibly deprecated
-    'page_engaged_users',         // possibly deprecated
-    'page_post_engagements',      // total reactions/comments/shares/clicks on posts
-    'page_fan_adds',              // new page likes
-    'page_fan_adds_unique',       // possibly deprecated
-    'page_views_total',           // possibly deprecated
-    'page_total_actions',         // replacement for page_views_total in newer API versions
-    'page_video_views',           // total video views
-    'page_video_views_unique',    // possibly deprecated
-    'page_followers',             // current follower count
+    'page_impressions',           // total impressions — deprecated wave 1
+    'page_impressions_unique',    // reach — DEPRECATED wave 2 (2026-06-15); replaced by page_media_view
+    'page_media_view',            // NEW: Total Unique Media Views — replacement for page_impressions_unique
+    'page_engaged_users',         // deprecated wave 1
+    'page_post_engagements',      // total reactions/comments/shares/clicks on posts — still works
+    'page_fan_adds',              // new page likes — deprecated wave 1
+    'page_fan_adds_unique',       // deprecated wave 1
+    'page_views_total',           // still works (page tab views)
+    'page_total_actions',         // alternative for page_views_total in newer API versions
+    'page_video_views',           // total video views — still works
+    'page_video_views_unique',    // DEPRECATED wave 2 (2026-06-15); no direct replacement
+    'page_followers',             // current follower count — deprecated wave 1
   ];
   const results = await Promise.all(candidates.map(async (m) => {
     const url = `${META_BASE}/${pageId}/insights?metric=${m}&period=day&date_preset=last_30d&access_token=${pageAccessToken}`;
