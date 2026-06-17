@@ -1933,14 +1933,16 @@
             text-transform: uppercase; letter-spacing: 0.5px;
         }
         .comment-ticker-count { display: none; }
-        /* Scrolling track */
+        /* Scrolling track — flex container so belt is vertically centered */
         .comment-ticker-track {
             overflow: hidden;
             position: relative;
             height: 164px;
             background: #FAFBFC;
+            display: flex;
+            align-items: center;
         }
-        /* Fade masks */
+        /* Fade masks (absolute, unaffected by flex) */
         .comment-ticker-track::before,
         .comment-ticker-track::after {
             content: '';
@@ -1949,22 +1951,22 @@
         }
         .comment-ticker-track::before {
             left: 0;
-            background: linear-gradient(to right, #FAFBFC 20%, transparent);
+            background: linear-gradient(to right, #FAFBFC 30%, transparent);
         }
         .comment-ticker-track::after {
             right: 0;
-            background: linear-gradient(to left, #FAFBFC 20%, transparent);
+            background: linear-gradient(to left, #FAFBFC 30%, transparent);
         }
+        /* Belt: inline-flex so its width = content width (not parent width).
+           translateX(-50%) then equals exactly one full set of items. */
         .comment-ticker-belt {
-            display: flex;
-            flex-wrap: nowrap;
+            display: inline-flex;
             align-items: center;
-            height: 164px;
-            gap: 14px;
-            padding: 12px 0;
+            flex-shrink: 0;
+            gap: 16px;
+            padding: 0 8px;
             animation: tickerScroll 22s linear infinite;
             will-change: transform;
-            box-sizing: border-box;
         }
         .comment-ticker-belt:hover { animation-play-state: paused; }
         @keyframes tickerScroll {
@@ -1973,19 +1975,22 @@
         }
         /* Each item: fixed-width card with green left accent */
         .comment-ticker-item {
-            display: flex;
+            display: inline-flex;
             flex-direction: column;
             justify-content: center;
             gap: 10px;
-            flex: 0 0 400px;
-            min-height: 100px;
-            padding: 16px 20px 16px 20px;
-            background: #fff;
+            width: 380px;
+            flex-shrink: 0;
+            min-height: 110px;
+            max-height: 136px;
+            padding: 16px 18px 16px 18px;
+            background: #ffffff;
             border-radius: 10px;
             border: 1px solid #E2E8F0;
             border-left: 4px solid #006553;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.07);
             box-sizing: border-box;
+            overflow: hidden;
         }
         .comment-ticker-quote {
             font-size: 13px;
