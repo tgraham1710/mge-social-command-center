@@ -1973,7 +1973,7 @@
             0%   { transform: translateX(0); }
             100% { transform: translateX(-50%); }
         }
-        /* Each item: fixed-width card with platform-colored left accent */
+        /* Each item: fixed-width card — left border color set by platform class */
         .comment-ticker-item {
             display: inline-flex;
             flex-direction: column;
@@ -1985,11 +1985,18 @@
             background: #ffffff;
             border-radius: 8px;
             border: 1px solid #E2E8F0;
-            border-left: 5px solid #006553;
+            border-left-width: 5px;
+            border-left-style: solid;
+            border-left-color: #006553; /* default / LinkedIn fallback */
             box-shadow: 0 1px 4px rgba(0,0,0,0.07);
             box-sizing: border-box;
             overflow: hidden;
         }
+        /* Platform accent colors */
+        .comment-ticker-item.plat-fb   { border-left-color: #1877F2; }
+        .comment-ticker-item.plat-ig   { border-left-color: #E1306C; }
+        .comment-ticker-item.plat-li   { border-left-color: #0A66C2; }
+        .comment-ticker-item.plat-yt   { border-left-color: #FF0000; }
         .comment-ticker-quote {
             font-size: 13px;
             font-weight: 500;
@@ -7420,17 +7427,12 @@ function renderCommentTicker(allComments) {
     const platColor = { fb: '#1877F2', ig: '#E1306C', li: '#0A66C2', yt: '#FF0000' };
 
     const itemHtml = picks.map(({ c }) => {
-        const plat = platLabel[c.platform] || c.platform;
-        const color = platColor[c.platform] || '#006553';
-        // Truncate to ~90 chars so each card is a quick readable snippet
+        // Truncate to ~90 chars — quick readable snippet as it scrolls
         const snippet = c.text.length > 92 ? c.text.substring(0, 90).trimEnd() + '…' : c.text;
-        return '<div class=”comment-ticker-item” style=”border-left-color:' + color + '”>' +
+        // Platform class drives the left-border color via CSS
+        const platClass = 'plat-' + (c.platform || 'default');
+        return '<div class=”comment-ticker-item ' + platClass + '”>' +
             '<div class=”comment-ticker-quote”>”' + escapeHtml(snippet) + '”</div>' +
-            '<div class=”comment-ticker-byline”>' +
-                '<span class=”comment-ticker-author”>' + escapeHtml(c.author || 'Community Member') + '</span>' +
-                '<span class=”comment-ticker-dot”></span>' +
-                '<span class=”comment-ticker-platform” style=”color:' + color + '; background:' + color + '1a; padding:1px 5px; border-radius:3px;”>' + escapeHtml(plat) + '</span>' +
-            '</div>' +
         '</div>';
     }).join('');
 
