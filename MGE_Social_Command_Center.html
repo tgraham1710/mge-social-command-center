@@ -1965,7 +1965,7 @@
             flex-shrink: 0;
             gap: 16px;
             padding: 0 8px;
-            animation: tickerScroll 22s linear infinite;
+            animation: tickerScroll 80s linear infinite;
             will-change: transform;
         }
         .comment-ticker-belt:hover { animation-play-state: paused; }
@@ -1979,7 +1979,7 @@
             flex-direction: column;
             justify-content: center;
             gap: 10px;
-            width: 380px;
+            width: 300px;
             flex-shrink: 0;
             min-height: 110px;
             max-height: 136px;
@@ -7435,7 +7435,8 @@ function renderCommentTicker(allComments) {
 
     // Duration scales with number of items × card width (~440px + 20px gap)
     const totalItems = picks.length;
-    const duration = Math.max(14, Math.min(30, totalItems * 2.0));
+    // ~8s per card — comfortable reading pace; minimum 50s even with few cards
+    const duration = Math.max(50, totalItems * 8);
     belt.style.animationDuration = duration + 's';
 
     wrap.style.display = 'block';
