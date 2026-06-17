@@ -1929,69 +1929,100 @@
             border-bottom: 1px solid #F1F5F9;
         }
         .comment-ticker-title {
-            /* Matches .card-title style */
-            font-size: 15px; font-weight: 800; color: #1B2559;
+            font-size: 14px; font-weight: 700; color: #8F9BBA;
             text-transform: uppercase; letter-spacing: 0.5px;
         }
         .comment-ticker-count { display: none; }
-        /* Scrolling track — tall enough for 2–3 lines of text */
+        /* Scrolling track */
         .comment-ticker-track {
             overflow: hidden;
             position: relative;
-            height: 110px;
+            height: 164px;
+            background: #FAFBFC;
         }
         /* Fade masks */
         .comment-ticker-track::before,
         .comment-ticker-track::after {
             content: '';
-            position: absolute; top: 0; bottom: 0; width: 60px; z-index: 2;
+            position: absolute; top: 0; bottom: 0; width: 80px; z-index: 2;
             pointer-events: none;
         }
         .comment-ticker-track::before {
             left: 0;
-            background: linear-gradient(to right, #fff, transparent);
+            background: linear-gradient(to right, #FAFBFC 20%, transparent);
         }
         .comment-ticker-track::after {
             right: 0;
-            background: linear-gradient(to left, #fff, transparent);
+            background: linear-gradient(to left, #FAFBFC 20%, transparent);
         }
         .comment-ticker-belt {
-            display: inline-flex; align-items: flex-start;
-            height: 100%; padding: 14px 0;
+            display: inline-flex;
+            align-items: stretch;
+            height: 100%;
             animation: tickerScroll 22s linear infinite;
             will-change: transform;
+            padding: 16px 0;
+            gap: 0;
         }
         .comment-ticker-belt:hover { animation-play-state: paused; }
         @keyframes tickerScroll {
             0%   { transform: translateX(0); }
             100% { transform: translateX(-50%); }
         }
-        /* Each item is a fixed-width column so text wraps naturally */
+        /* Each item is a card-style block */
         .comment-ticker-item {
-            display: inline-flex; flex-direction: column; gap: 5px;
-            flex-shrink: 0; width: 360px;
-            padding: 0 48px 0 20px;
+            display: inline-flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 8px;
+            flex-shrink: 0;
+            width: 420px;
+            padding: 14px 20px 14px 22px;
+            margin: 0 10px;
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid #E9EEF4;
+            border-left: 3px solid #006553;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         .comment-ticker-quote {
-            font-size: 14.5px; font-weight: 500; color: #334155;
-            font-style: italic; line-height: 1.45;
-            white-space: normal; word-wrap: break-word;
+            font-size: 13.5px;
+            font-weight: 500;
+            color: #1E293B;
+            font-style: italic;
+            line-height: 1.5;
+            white-space: normal;
+            word-wrap: break-word;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
         }
         .comment-ticker-byline {
-            display: flex; align-items: center; gap: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         .comment-ticker-author {
-            font-size: 11px; font-weight: 700; color: #006553;
+            font-size: 11.5px;
+            font-weight: 700;
+            color: #006553;
             white-space: nowrap;
         }
+        .comment-ticker-dot {
+            width: 3px; height: 3px;
+            border-radius: 50%;
+            background: #CBD5E1;
+            flex-shrink: 0;
+        }
         .comment-ticker-platform {
-            font-size: 9.5px; font-weight: 700; letter-spacing: 0.4px;
-            text-transform: uppercase; color: #94A3B8;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: #94A3B8;
         }
-        .comment-ticker-sep {
-            color: #CBD5E1; font-size: 18px; font-weight: 300;
-            padding: 0 4px; flex-shrink: 0; align-self: center;
-        }
+        .comment-ticker-sep { display: none; }
 
         /* AHS Over Time — collapsible, lives inside the left column below the AHS card */
         .ahs-chart-section {
@@ -7378,22 +7409,22 @@ function renderCommentTicker(allComments) {
 
     const itemHtml = picks.map(({ c }) => {
         const plat = platLabel[c.platform] || c.platform;
-        // No truncation — show full comment text and let it wrap naturally
         return '<div class=”comment-ticker-item”>' +
-            '<span class=”comment-ticker-quote”>”' + escapeHtml(c.text) + '”</span>' +
+            '<div class=”comment-ticker-quote”>“' + escapeHtml(c.text) + '”</div>' +
             '<div class=”comment-ticker-byline”>' +
-                '<span class=”comment-ticker-author”>— ' + escapeHtml(c.author || 'Community Member') + '</span>' +
+                '<span class=”comment-ticker-author”>' + escapeHtml(c.author || 'Community Member') + '</span>' +
+                '<span class=”comment-ticker-dot”></span>' +
                 '<span class=”comment-ticker-platform”>' + escapeHtml(plat) + '</span>' +
             '</div>' +
-        '</div><span class=”comment-ticker-sep”>|</span>';
+        '</div>';
     }).join('');
 
     // Duplicate for seamless loop
     belt.innerHTML = itemHtml + itemHtml;
 
-    // Speed: items are 360px wide; total belt width drives duration
+    // Duration scales with number of items × card width (~440px + 20px gap)
     const totalItems = picks.length;
-    const duration = Math.max(12, Math.min(26, totalItems * 1.8));
+    const duration = Math.max(14, Math.min(30, totalItems * 2.0));
     belt.style.animationDuration = duration + 's';
 
     wrap.style.display = 'block';
