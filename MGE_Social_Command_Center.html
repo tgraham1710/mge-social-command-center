@@ -4764,36 +4764,49 @@ function processData(raw, dateRangeOverride) {
     if (liPostsArr.length) {
         liPostsArr.forEach(p => {
             result.platformEngagement.li.postCount++;
-            // Content type — for now LinkedIn posts are bucketed as one type until Community
-            // Management API approval gives us per-post content classification (article/video/image).
-            result.contentMix.li_post.count++;
-            const likes = p.likeCount || p.numLikes || 0;
-            const comments = p.commentCount || p.numComments || 0;
-            const shares = p.shareCount || p.numShares || 0;
-            result.kpis.reactions += likes;
-            result.kpis.comments += comments;
-            result.kpis.shares += shares;
-            result.platformEngagement.li.likes += likes;
-            result.platformEngagement.li.comments += comments;
-            result.platformEngagement.li.shares += shares;
-            // LinkedIn likes are implicitly positive
-            result.reactionSentiment.li += likes * 1;
-            result.reactionSentiment.count += likes;
-            result.reactionSentiment.li += shares * 1.5; // shares imply positive sentiment
-            result.reactionSentiment.count += shares;
+            // Detect content type from content field (available after Community Management API enrichment)
+            const hasVideo = !!(p.content?.media?.id && p.content.media.id.includes('video'));
+            const hasImage = !!(p.content?.media?.id && !hasVideo);
+            const hasArticle = !!(p.content?.article);
+            const contentType = hasVideo ? 'li_video' : hasArticle ? 'li_article' : 'li_post';
+            if (result.contentMix[contentType]) result.contentMix[contentType].count++;
+            else result.contentMix.li_post.count++;
+            // Engagement metrics — now populated by server-side organizationalEntityShareStatistics merge
+            const likes      = p.likeCount       || p.numLikes    || 0;
+            const comments   = p.commentCount    || p.numComments || 0;
+            const shares     = p.shareCount      || p.numShares   || 0;
+            const impressions = p.impressionCount || 0;
+            const clicks     = p.clickCount      || 0;
+            const engRate    = p.engagementRate  || 0;
+            result.kpis.reactions   += likes;
+            result.kpis.comments    += comments;
+            result.kpis.shares      += shares;
+            result.kpis.views       += impressions;
+            result.kpis.impressions += impressions;
+            result.platformEngagement.li.likes      += likes;
+            result.platformEngagement.li.comments   += comments;
+            result.platformEngagement.li.shares     += shares;
+            result.platformEngagement.li.views      = (result.platformEngagement.li.views || 0) + impressions;
+            result.platformEngagement.li.impressions = (result.platformEngagement.li.impressions || 0) + impressions;
+            result.platformEngagement.li.clicks     = (result.platformEngagement.li.clicks || 0) + clicks;
+            // LinkedIn likes/shares signal positive sentiment
+            result.reactionSentiment.li   += likes * 1 + shares * 1.5;
+            result.reactionSentiment.count += likes + shares;
             const txt = p.commentary || p.text || p.specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text || 'Post';
             result.postEngagement.push({ platform: 'LinkedIn', label: txt.substring(0, 30), value: likes + comments + shares });
             result.allPosts.push({
                 platform: 'li',
-                contentType: 'li_post',
+                contentType: contentType,
                 text: txt,
                 image: '',
                 date: p.created?.time ? new Date(p.created.time).toISOString() : (p.publishedAt || ''),
-                permalink: '',
+                permalink: p.id ? `https://www.linkedin.com/feed/update/${encodeURIComponent(p.id)}/` : '',
                 reactions: likes,
                 comments: comments,
                 shares: shares,
-                views: 0,
+                views: impressions,
+                clicks: clicks,
+                engagementRate: engRate,
                 totalEngagement: likes + comments + shares
             });
         });
@@ -4802,7 +4815,9 @@ function processData(raw, dateRangeOverride) {
         liCommentsArr.forEach(c => {
             const item = {
                 platform: 'li',
-                author: c.authorName || c.author || c.actor || 'LinkedIn User',
+                // c.actor from LinkedIn API is a URN string ("urn:li:person:xxx"), not an object.
+                // authorName is set by server if resolved; otherwise fall back to "LinkedIn Member".
+                author: c.authorName || c.author || (typeof c.actor === 'object' ? c.actor?.name : null) || 'LinkedIn Member',
                 authorImage: '',
                 text: c.message || c.text || c.comment || '',
                 time: c.created || c.publishedAt || '',
@@ -4989,16 +5004,23 @@ function processData(raw, dateRangeOverride) {
     // LinkedIn
     if (raw.linkedin && raw.linkedin.organization) {
         const o = raw.linkedin.organization;
-        result.audience.li.followers = o.followersCount || o.totalFollowerCount || (o.firstDegreeSize || 0);
+        // followersCount may come from the organization projection or the followerStatistics merge
+        result.audience.li.followers = o.followersCount || o.totalFollowerCount || o.firstDegreeSize || 0;
     }
     if (raw.linkedin && raw.linkedin.pageStats) {
         const ps = raw.linkedin.pageStats;
         const elems = ps.elements || [];
         const stats = (elems[0] && elems[0].totalPageStatistics) || {};
         const views = stats.views || {};
-        // LI page-level reach/impressions (all pages aggregate)
+        // Page views across all page sections (overview, jobs, life, etc.)
         const allViews = views.allPageViews || {};
-        result.audience.li.impressions += allViews.pageViews || 0;
+        const overviewViews = views.overviewPageViews || {};
+        result.audience.li.impressions += allViews.pageViews || overviewViews.pageViews || 0;
+        // Unique visitors from page stats
+        result.audience.li.reach = (result.audience.li.reach || 0) + (allViews.uniquePageViews || overviewViews.uniquePageViews || 0);
+        // Clicks on page CTAs / career buttons if available
+        const clicks = stats.clicks || {};
+        result.audience.li.clicks = (result.audience.li.clicks || 0) + (clicks.careersPageClicks || 0) + (clicks.mobileCustomModuleClicks || 0);
     }
     // YouTube
     if (raw.youtube && raw.youtube.channel) {
