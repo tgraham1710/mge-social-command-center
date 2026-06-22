@@ -695,6 +695,7 @@ const LI_REST = 'https://api.linkedin.com/rest';
 // ============================================================
 let _liAccessToken  = process.env.LINKEDIN_TOKEN || '';
 let _liTokenExpiry  = _liAccessToken ? (Date.now() + 55 * 24 * 60 * 60 * 1000) : 0; // assume ~55 days if static token
+const _liImageCache = new Map(); // imageUrn → { url, expiresAt } — avoids re-fetching thumbnails
 
 async function _liGetAccessToken() {
   // Return cached token if still valid (with 1-minute buffer)
@@ -807,8 +808,8 @@ app.get('/api/linkedin/organization', async (req, res) => {
   if (!organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
   let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const data = await apiFetch(
-    `${LI_BASE}/organizations/${organizationId}?projection=(id,localizedName,vanityName,logoV2,followersCount)`,
-    { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202603', 'X-Restli-Protocol-Version': '2.0.0' } }
+    `${LI_REST}/organizations/${organizationId}`,
+    { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202603' } }
   );
   res.json(data);
 });
@@ -818,8 +819,8 @@ app.get('/api/linkedin/follower-count', async (req, res) => {
   if (!organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
   let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const data = await apiFetch(
-    `${LI_BASE}/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity=urn:li:organization:${organizationId}`,
-    { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202603', 'X-Restli-Protocol-Version': '2.0.0' } }
+    `${LI_REST}/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity=urn%3Ali%3Aorganization%3A${organizationId}`,
+    { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202603' } }
   );
   res.json(data);
 });
@@ -900,6 +901,49 @@ app.get('/api/linkedin/posts', async (req, res) => {
     // Non-fatal — posts still return, just without engagement counts
   }
 
+  // Step 3: Fetch thumbnail images for posts that have media content.
+  // Results are cached for 6 hours to avoid burning rate-limit budget on re-fetches.
+  try {
+    const now = Date.now();
+    const toFetch = []; // imageUrns not yet in cache or whose cache entry expired
+    posts.forEach(p => {
+      const imageUrn = p.content?.media?.id ||
+                       p.content?.multiImage?.images?.[0]?.id ||
+                       p.content?.article?.thumbnail;
+      if (imageUrn && imageUrn.startsWith('urn:li:image:')) {
+        p._imageUrn = imageUrn;
+        const cached = _liImageCache.get(imageUrn);
+        if (!cached || now > cached.expiresAt) toFetch.push(imageUrn);
+      }
+    });
+
+    if (toFetch.length) {
+      const imgResults = await Promise.all(
+        toFetch.map(urn => apiFetch(
+          `${LI_REST}/images/${encodeURIComponent(urn)}`,
+          { headers: liHeaders }
+        ))
+      );
+      imgResults.forEach((r, i) => {
+        if (!r.error && r.downloadUrl) {
+          _liImageCache.set(toFetch[i], { url: r.downloadUrl, expiresAt: now + 6 * 60 * 60 * 1000 });
+        }
+      });
+    }
+
+    posts.forEach(p => {
+      if (p._imageUrn) {
+        const cached = _liImageCache.get(p._imageUrn);
+        p.thumbnailUrl = cached?.url || '';
+        delete p._imageUrn;
+      }
+    });
+    const thumbCount = posts.filter(p => p.thumbnailUrl).length;
+    console.log(`[LinkedIn] Thumbnails: ${thumbCount}/${posts.length} posts have images (${toFetch.length} newly fetched)`);
+  } catch (imgErr) {
+    console.warn('[LinkedIn] Could not fetch post thumbnails:', imgErr.message);
+  }
+
   res.json(postsData);
 });
 
@@ -934,71 +978,98 @@ app.get('/api/linkedin/all-comments', async (req, res) => {
     { headers: liHeaders }
   );
   if (postsData.error) return res.json(postsData);
-  const posts = postsData.elements || [];
+  const allPosts = postsData.elements || [];
+
+  // Cap to 20 most recent posts to stay well within the 500 req/day Development Tier limit.
+  // 20 top-level + up to 40 reply fetches = ~60 requests, leaving room for other endpoints.
+  const posts = allPosts.slice(0, 20);
+  console.log(`[LinkedIn] Fetching comments for ${posts.length} of ${allPosts.length} posts`);
+
   // Pass 1: fetch top-level comments for each post
   const commentPromises = posts.map(p =>
     apiFetch(`${LI_REST}/socialActions/${encodeURIComponent(p.id)}/comments?count=50`, { headers: liHeaders })
   );
   const results = await Promise.all(commentPromises);
   const allComments = [];
-  // Build a list of (postIndex, comment) pairs, and collect comment URNs that may have replies
-  const replyTargets = []; // { postIndex, commentUrn, parentAuthor }
-  results.forEach((r, i) => {
-    if (!r.error && r.elements) {
-      r.elements.forEach(c => {
-        const commentUrn = c.$URN || c.object?.$URN || null;
-        allComments.push({
-          platform: 'linkedin',
-          id: commentUrn || (posts[i].id + ':' + (c.created?.time || '')),
-          author: c.actor?.name || 'LinkedIn User',
-          text: c.message?.text || c.comment || '',
-          publishedAt: c.created?.time ? new Date(c.created.time).toISOString() : new Date().toISOString(),
-          likeCount: c.likeCount || 0,
-          postId: posts[i].id,
-          postText: posts[i].commentary || posts[i].specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text || ''
-        });
-        // Queue a reply fetch for this comment if we have a URN to target.
-        if (commentUrn) {
-          replyTargets.push({
-            postIndex: i,
-            commentUrn,
-            parentAuthor: c.actor?.name || '',
-            parentText: c.message?.text || c.comment || ''
-          });
-        }
-      });
+  const replyTargets = []; // { postIndex, commentUrn, parentAuthor, parentText }
+
+  // In LinkedIn REST API v202603, `actor` is a URN string like "urn:li:person:ABC",
+  // not an object with a name field. We display a friendly label from the URN type.
+  function _liActorLabel(actor) {
+    if (!actor) return 'LinkedIn Member';
+    if (typeof actor === 'object') return actor.name || actor.localizedName || 'LinkedIn Member';
+    if (typeof actor === 'string') {
+      if (actor.includes('urn:li:person:'))       return 'LinkedIn Member';
+      if (actor.includes('urn:li:organization:')) return 'Company';
+      return 'LinkedIn Member';
     }
-  });
-  // Pass 2: fetch second-level replies for every top-level comment that exposed a URN.
-  // Capped at 100 reply-fetches per refresh to keep this bounded.
-  const cappedTargets = replyTargets.slice(0, 100);
-  const replyResults = await Promise.all(
-    cappedTargets.map(t =>
-      apiFetch(`${LI_REST}/socialActions/${encodeURIComponent(t.commentUrn)}/comments?count=20`, { headers: liHeaders })
-    )
-  );
-  replyResults.forEach((rr, idx) => {
-    const t = cappedTargets[idx];
-    if (!rr || rr.error || !rr.elements) return;
-    rr.elements.forEach(rc => {
-      const replyUrn = rc.$URN || rc.object?.$URN || null;
+    return 'LinkedIn Member';
+  }
+
+  results.forEach((r, i) => {
+    if (r.error) {
+      console.warn(`[LinkedIn] Comments fetch failed for post ${posts[i].id}: ${r.status} ${r.message?.substring(0, 100)}`);
+      return;
+    }
+    if (!r.elements || !r.elements.length) return;
+    r.elements.forEach(c => {
+      const commentUrn = c.$URN || c.id || c.object?.$URN || null;
+      const postText = posts[i].commentary || posts[i].specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text || '';
       allComments.push({
         platform: 'linkedin',
-        id: replyUrn || (t.commentUrn + ':' + (rc.created?.time || '')),
-        author: rc.actor?.name || 'LinkedIn User',
-        text: rc.message?.text || rc.comment || '',
-        publishedAt: rc.created?.time ? new Date(rc.created.time).toISOString() : new Date().toISOString(),
-        likeCount: rc.likeCount || 0,
-        postId: posts[t.postIndex].id,
-        postText: posts[t.postIndex].commentary || posts[t.postIndex].specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text || '',
-        isReply: true,
-        parentCommentId: t.commentUrn,
-        parentAuthor: t.parentAuthor,
-        parentCommentText: t.parentText || ''
+        id: commentUrn || (posts[i].id + ':' + (c.created?.time || '')),
+        author: _liActorLabel(c.actor),
+        text: c.message?.text || c.comment || '',
+        publishedAt: c.created?.time ? new Date(c.created.time).toISOString() : new Date().toISOString(),
+        likeCount: c.likeCount || 0,
+        postId: posts[i].id,
+        postText
       });
+      if (commentUrn) {
+        replyTargets.push({
+          postIndex: i,
+          commentUrn,
+          parentAuthor: _liActorLabel(c.actor),
+          parentText: c.message?.text || c.comment || ''
+        });
+      }
     });
   });
+  console.log(`[LinkedIn] Pass 1 complete: ${allComments.length} top-level comments from ${posts.length} posts`);
+
+  // Pass 2: fetch replies. Cap at 40 to protect rate limit.
+  const cappedTargets = replyTargets.slice(0, 40);
+  if (cappedTargets.length) {
+    const replyResults = await Promise.all(
+      cappedTargets.map(t =>
+        apiFetch(`${LI_REST}/socialActions/${encodeURIComponent(t.commentUrn)}/comments?count=20`, { headers: liHeaders })
+      )
+    );
+    replyResults.forEach((rr, idx) => {
+      const t = cappedTargets[idx];
+      if (!rr || rr.error || !rr.elements) return;
+      rr.elements.forEach(rc => {
+        const replyUrn = rc.$URN || rc.id || rc.object?.$URN || null;
+        allComments.push({
+          platform: 'linkedin',
+          id: replyUrn || (t.commentUrn + ':' + (rc.created?.time || '')),
+          author: _liActorLabel(rc.actor),
+          text: rc.message?.text || rc.comment || '',
+          publishedAt: rc.created?.time ? new Date(rc.created.time).toISOString() : new Date().toISOString(),
+          likeCount: rc.likeCount || 0,
+          postId: posts[t.postIndex].id,
+          postText: posts[t.postIndex].commentary || posts[t.postIndex].specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text || '',
+          isReply: true,
+          parentCommentId: t.commentUrn,
+          parentAuthor: t.parentAuthor,
+          parentCommentText: t.parentText || ''
+        });
+      });
+    });
+  }
+
   allComments.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  console.log(`[LinkedIn] all-comments returning ${allComments.length} total (top-level + replies)`);
   res.json({ comments: allComments });
 });
 
