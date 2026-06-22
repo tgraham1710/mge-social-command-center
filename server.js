@@ -183,6 +183,10 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'MGE_Social_Command
 
 async function apiFetch(url, options = {}) {
   try {
+    // Inject session cookie for internal localhost calls so auth middleware passes them
+    if (url.startsWith('http://localhost') && SESSION_TOKEN) {
+      options = { ...options, headers: { 'Cookie': `mge_auth=${SESSION_TOKEN}`, ...(options.headers || {}) } };
+    }
     const resp = await fetch(url, options);
     if (!resp.ok) {
       const text = await resp.text();
