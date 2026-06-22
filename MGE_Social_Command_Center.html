@@ -4798,7 +4798,7 @@ function processData(raw, dateRangeOverride) {
                 platform: 'li',
                 contentType: contentType,
                 text: txt,
-                image: '',
+                image: p.thumbnailUrl || '',
                 date: p.created?.time ? new Date(p.created.time).toISOString() : (p.publishedAt || ''),
                 permalink: p.id ? `https://www.linkedin.com/feed/update/${encodeURIComponent(p.id)}/` : '',
                 reactions: likes,
