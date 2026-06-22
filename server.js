@@ -828,10 +828,15 @@ app.get('/api/linkedin/posts', async (req, res) => {
 
   // Step 1: Fetch published posts only
   const postsData = await apiFetch(
-    `${LI_REST}/posts?author=urn:li:organization:${organizationId}&q=author&count=50&sortBy=LAST_MODIFIED&lifecycleState=PUBLISHED`,
+    `${LI_REST}/posts?author=urn:li:organization:${organizationId}&q=author&count=50&sortBy=LAST_MODIFIED`,
     { headers: liHeaders }
   );
+  if (postsData.error) {
+    console.warn('[LinkedIn] Posts fetch failed:', postsData.status, postsData.message?.substring(0, 200));
+    return res.json(postsData);
+  }
   const posts = postsData.elements || [];
+  console.log(`[LinkedIn] Fetched ${posts.length} posts`);
   if (!posts.length) return res.json(postsData);
 
   // Step 2: Batch-fetch engagement stats for all posts in a single call.
@@ -897,7 +902,7 @@ app.get('/api/linkedin/all-comments', async (req, res) => {
   let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const liHeaders = { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' };
   const postsData = await apiFetch(
-    `${LI_REST}/posts?author=urn:li:organization:${organizationId}&q=author&count=50&sortBy=LAST_MODIFIED&lifecycleState=PUBLISHED`,
+    `${LI_REST}/posts?author=urn:li:organization:${organizationId}&q=author&count=50&sortBy=LAST_MODIFIED`,
     { headers: liHeaders }
   );
   if (postsData.error) return res.json(postsData);
