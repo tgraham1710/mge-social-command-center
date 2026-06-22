@@ -735,7 +735,7 @@ async function _liGetAccessToken() {
 // These routes are exempt from the dashboard password middleware (path starts with /auth/).
 // ============================================================
 const LI_REDIRECT_URI = process.env.LINKEDIN_REDIRECT_URI || 'https://mge-social-command-center.onrender.com/auth/linkedin/callback';
-const LI_OAUTH_SCOPES = 'r_organization_social r_organization_followers';
+const LI_OAUTH_SCOPES = 'r_organization_social r_organization_followers rw_organization_admin';
 
 app.get('/auth/linkedin', (req, res) => {
   const { clientId } = config.linkedin || {};
@@ -808,7 +808,7 @@ app.get('/api/linkedin/organization', async (req, res) => {
   let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const data = await apiFetch(
     `${LI_BASE}/organizations/${organizationId}?projection=(id,localizedName,vanityName,logoV2,followersCount)`,
-    { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503', 'X-Restli-Protocol-Version': '2.0.0' } }
+    { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202603', 'X-Restli-Protocol-Version': '2.0.0' } }
   );
   res.json(data);
 });
@@ -819,7 +819,7 @@ app.get('/api/linkedin/follower-count', async (req, res) => {
   let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const data = await apiFetch(
     `${LI_BASE}/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity=urn:li:organization:${organizationId}`,
-    { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503', 'X-Restli-Protocol-Version': '2.0.0' } }
+    { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202603', 'X-Restli-Protocol-Version': '2.0.0' } }
   );
   res.json(data);
 });
@@ -828,7 +828,7 @@ app.get('/api/linkedin/posts', async (req, res) => {
   const { organizationId } = config.linkedin || {};
   if (!organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
   let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
-  const liHeaders = { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' };
+  const liHeaders = { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202603' };
 
   // Step 1: Fetch published posts only
   const postsData = await apiFetch(
@@ -843,22 +843,45 @@ app.get('/api/linkedin/posts', async (req, res) => {
   console.log(`[LinkedIn] Fetched ${posts.length} posts`);
   if (!posts.length) return res.json(postsData);
 
-  // Step 2: Batch-fetch engagement stats for all posts in a single call.
-  // LinkedIn's /rest/posts does NOT include likeCount/commentCount/shareCount/impressionCount
-  // in the post object — these live exclusively in organizationalEntityShareStatistics.
+  // Step 2: Batch-fetch engagement stats via organizationalEntityShareStatistics.
+  // IMPORTANT: urn:li:share and urn:li:ugcPost URNs use DIFFERENT query params.
+  // shares=List(...) only works for urn:li:share URNs.
+  // ugcPosts[0]=...&ugcPosts[1]=... is required for urn:li:ugcPost URNs.
+  // Mixing them in one call silently returns empty results.
   try {
-    const urns = posts.map(p => p.id).filter(Boolean);
-    const sharesList = `List(${urns.map(u => encodeURIComponent(u)).join(',')})`;
-    const statsData = await apiFetch(
-      `${LI_REST}/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity=urn%3Ali%3Aorganization%3A${organizationId}&shares=${sharesList}`,
-      { headers: liHeaders }
-    );
-    // Build URN → stats lookup
+    const shareUrns   = posts.map(p => p.id).filter(u => u?.includes('urn:li:share:'));
+    const ugcPostUrns = posts.map(p => p.id).filter(u => u?.includes('urn:li:ugcPost:'));
+
     const statsMap = {};
-    (statsData.elements || []).forEach(el => {
-      const urn = el.shareUrn || el.ugcPostUrn || el.organizationalEntity;
-      if (urn) statsMap[urn] = el.totalShareStatistics || {};
-    });
+
+    // Fetch share stats
+    if (shareUrns.length) {
+      const sharesList = `List(${shareUrns.map(u => encodeURIComponent(u)).join(',')})`;
+      const shareStats = await apiFetch(
+        `${LI_REST}/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity=urn%3Ali%3Aorganization%3A${organizationId}&shares=${sharesList}`,
+        { headers: liHeaders }
+      );
+      (shareStats.elements || []).forEach(el => {
+        const urn = el.share || el.shareUrn;
+        if (urn) statsMap[urn] = el.totalShareStatistics || {};
+      });
+      console.log(`[LinkedIn] Share stats: ${shareStats.elements?.length || 0} entries`);
+    }
+
+    // Fetch ugcPost stats (different query param format per LinkedIn docs)
+    if (ugcPostUrns.length) {
+      const ugcQS = ugcPostUrns.map((u, i) => `ugcPosts[${i}]=${encodeURIComponent(u)}`).join('&');
+      const ugcStats = await apiFetch(
+        `${LI_REST}/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity=urn%3Ali%3Aorganization%3A${organizationId}&${ugcQS}`,
+        { headers: liHeaders }
+      );
+      (ugcStats.elements || []).forEach(el => {
+        const urn = el.ugcPost || el.ugcPostUrn;
+        if (urn) statsMap[urn] = el.totalShareStatistics || {};
+      });
+      console.log(`[LinkedIn] UGC post stats: ${ugcStats.elements?.length || 0} entries`);
+    }
+
     // Merge engagement stats directly onto each post object
     posts.forEach(p => {
       const s = statsMap[p.id] || {};
@@ -870,7 +893,8 @@ app.get('/api/linkedin/posts', async (req, res) => {
       p.engagementRate  = s.engagement      || 0;
       p.uniqueImpressions = s.uniqueImpressionsCount || 0;
     });
-    console.log(`[LinkedIn] Enriched ${posts.length} posts with share stats`);
+    const enriched = posts.filter(p => p.impressionCount > 0 || p.likeCount > 0).length;
+    console.log(`[LinkedIn] Enriched ${posts.length} posts with share stats (${enriched} had non-zero data)`);
   } catch (statsErr) {
     console.warn('[LinkedIn] Could not fetch share statistics:', statsErr.message);
     // Non-fatal — posts still return, just without engagement counts
@@ -883,8 +907,8 @@ app.get('/api/linkedin/social-actions/:postUrn', async (req, res) => {
   let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const urn = decodeURIComponent(req.params.postUrn);
   const [likes, comments] = await Promise.all([
-    apiFetch(`${LI_REST}/socialActions/${encodeURIComponent(urn)}/likes?count=50`, { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' } }),
-    apiFetch(`${LI_REST}/socialActions/${encodeURIComponent(urn)}/comments?count=50`, { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' } })
+    apiFetch(`${LI_REST}/socialActions/${encodeURIComponent(urn)}/likes?count=50`, { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202603' } }),
+    apiFetch(`${LI_REST}/socialActions/${encodeURIComponent(urn)}/comments?count=50`, { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202603' } })
   ]);
   res.json({ likes, comments });
 });
@@ -895,7 +919,7 @@ app.get('/api/linkedin/page-stats', async (req, res) => {
   let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const data = await apiFetch(
     `${LI_REST}/organizationPageStatistics?q=organization&organization=urn:li:organization:${organizationId}`,
-    { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' } }
+    { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202603' } }
   );
   res.json(data);
 });
@@ -904,7 +928,7 @@ app.get('/api/linkedin/all-comments', async (req, res) => {
   const { organizationId } = config.linkedin || {};
   if (!organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
   let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
-  const liHeaders = { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' };
+  const liHeaders = { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202603' };
   const postsData = await apiFetch(
     `${LI_REST}/posts?author=urn:li:organization:${organizationId}&q=author&count=50&sortBy=LAST_MODIFIED`,
     { headers: liHeaders }
