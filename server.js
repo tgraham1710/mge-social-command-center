@@ -824,11 +824,50 @@ app.get('/api/linkedin/posts', async (req, res) => {
   const { organizationId } = config.linkedin || {};
   if (!organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
   let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
-  const data = await apiFetch(
-    `${LI_REST}/posts?author=urn:li:organization:${organizationId}&q=author&count=50&sortBy=LAST_MODIFIED`,
-    { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' } }
+  const liHeaders = { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' };
+
+  // Step 1: Fetch published posts only
+  const postsData = await apiFetch(
+    `${LI_REST}/posts?author=urn:li:organization:${organizationId}&q=author&count=50&sortBy=LAST_MODIFIED&lifecycleState=PUBLISHED`,
+    { headers: liHeaders }
   );
-  res.json(data);
+  const posts = postsData.elements || [];
+  if (!posts.length) return res.json(postsData);
+
+  // Step 2: Batch-fetch engagement stats for all posts in a single call.
+  // LinkedIn's /rest/posts does NOT include likeCount/commentCount/shareCount/impressionCount
+  // in the post object — these live exclusively in organizationalEntityShareStatistics.
+  try {
+    const urns = posts.map(p => p.id).filter(Boolean);
+    const sharesList = `List(${urns.map(u => encodeURIComponent(u)).join(',')})`;
+    const statsData = await apiFetch(
+      `${LI_REST}/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity=urn%3Ali%3Aorganization%3A${organizationId}&shares=${sharesList}`,
+      { headers: liHeaders }
+    );
+    // Build URN → stats lookup
+    const statsMap = {};
+    (statsData.elements || []).forEach(el => {
+      const urn = el.shareUrn || el.ugcPostUrn || el.organizationalEntity;
+      if (urn) statsMap[urn] = el.totalShareStatistics || {};
+    });
+    // Merge engagement stats directly onto each post object
+    posts.forEach(p => {
+      const s = statsMap[p.id] || {};
+      p.likeCount       = s.likeCount       || 0;
+      p.commentCount    = s.commentCount    || 0;
+      p.shareCount      = s.shareCount      || 0;
+      p.impressionCount = s.impressionCount || 0;
+      p.clickCount      = s.clickCount      || 0;
+      p.engagementRate  = s.engagement      || 0;
+      p.uniqueImpressions = s.uniqueImpressionsCount || 0;
+    });
+    console.log(`[LinkedIn] Enriched ${posts.length} posts with share stats`);
+  } catch (statsErr) {
+    console.warn('[LinkedIn] Could not fetch share statistics:', statsErr.message);
+    // Non-fatal — posts still return, just without engagement counts
+  }
+
+  res.json(postsData);
 });
 
 app.get('/api/linkedin/social-actions/:postUrn', async (req, res) => {
@@ -858,7 +897,7 @@ app.get('/api/linkedin/all-comments', async (req, res) => {
   let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const liHeaders = { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' };
   const postsData = await apiFetch(
-    `${LI_REST}/posts?author=urn:li:organization:${organizationId}&q=author&count=50&sortBy=LAST_MODIFIED`,
+    `${LI_REST}/posts?author=urn:li:organization:${organizationId}&q=author&count=50&sortBy=LAST_MODIFIED&lifecycleState=PUBLISHED`,
     { headers: liHeaders }
   );
   if (postsData.error) return res.json(postsData);
