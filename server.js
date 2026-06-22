@@ -42,11 +42,14 @@ function loadConfig() {
       igUserId: process.env.INSTAGRAM_USER_ID || fileConfig?.instagram?.igUserId || ''
     },
     linkedin: {
-      enabled: process.env.LINKEDIN_TOKEN ? true : fileConfig?.linkedin?.enabled || false,
+      // Enabled when refresh-token flow is configured (preferred) OR a static token exists
+      enabled: !!(process.env.LINKEDIN_REFRESH_TOKEN && process.env.LINKEDIN_CLIENT_ID) ||
+               (process.env.LINKEDIN_TOKEN ? true : fileConfig?.linkedin?.enabled || false),
       accessToken: process.env.LINKEDIN_TOKEN || fileConfig?.linkedin?.accessToken || '',
       organizationId: process.env.LINKEDIN_ORG_ID || fileConfig?.linkedin?.organizationId || '',
       clientId: process.env.LINKEDIN_CLIENT_ID || fileConfig?.linkedin?.clientId || '',
-      clientSecret: process.env.LINKEDIN_CLIENT_SECRET || fileConfig?.linkedin?.clientSecret || ''
+      clientSecret: process.env.LINKEDIN_CLIENT_SECRET || fileConfig?.linkedin?.clientSecret || '',
+      refreshToken: process.env.LINKEDIN_REFRESH_TOKEN || fileConfig?.linkedin?.refreshToken || ''
     },
     googleReviews: {
       // Google Business Profile API (OAuth 2.0)
@@ -198,7 +201,7 @@ app.get('/api/status', (req, res) => {
     youtube: !!(config.youtube?.enabled && config.youtube?.apiKey && config.youtube?.channelId),
     facebook: !!(config.facebook?.enabled && config.facebook?.pageAccessToken && config.facebook?.pageId),
     instagram: !!(config.instagram?.enabled && config.instagram?.accessToken && config.instagram?.igUserId),
-    linkedin: !!(config.linkedin?.enabled && config.linkedin?.accessToken && config.linkedin?.organizationId),
+    linkedin: !!(config.linkedin?.enabled && config.linkedin?.organizationId),
     refreshInterval: config.server?.refreshIntervalSeconds || 3600,
     // Public FB App ID (not a secret — shown in every OAuth URL). Exposed so the
     // dashboard can assemble OAuth dialog URLs for token regeneration.
@@ -679,6 +682,49 @@ const LI_BASE = 'https://api.linkedin.com/v2';
 const LI_REST = 'https://api.linkedin.com/rest';
 
 // ============================================================
+// LINKEDIN AUTO-REFRESH TOKEN MANAGER
+// Mirrors the GBP pattern: stores refresh token in env, auto-refreshes access token.
+// LinkedIn access tokens expire every 60 days; refresh tokens last 365 days and rotate.
+// On each refresh we update the in-memory refreshToken so subsequent refreshes keep working
+// without a server restart. Net effect: truly hands-off, never manually re-auth.
+// Required env vars: LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, LINKEDIN_REFRESH_TOKEN, LINKEDIN_ORG_ID
+// ============================================================
+let _liAccessToken  = process.env.LINKEDIN_TOKEN || '';
+let _liTokenExpiry  = _liAccessToken ? (Date.now() + 55 * 24 * 60 * 60 * 1000) : 0; // assume ~55 days if static token
+
+async function _liGetAccessToken() {
+  // Return cached token if still valid (with 1-minute buffer)
+  if (_liAccessToken && Date.now() < _liTokenExpiry - 60_000) return _liAccessToken;
+  const cfg = config.linkedin;
+  // Fall back to static token if no refresh-token flow configured
+  if (!cfg.refreshToken || !cfg.clientId || !cfg.clientSecret) {
+    if (_liAccessToken) return _liAccessToken;
+    throw new Error('LinkedIn not configured: set LINKEDIN_REFRESH_TOKEN, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET on Render');
+  }
+  const resp = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type:    'refresh_token',
+      refresh_token: cfg.refreshToken,
+      client_id:     cfg.clientId,
+      client_secret: cfg.clientSecret
+    })
+  });
+  if (!resp.ok) throw new Error(`LinkedIn token refresh failed (${resp.status}): ${await resp.text()}`);
+  const data = await resp.json();
+  if (data.error) throw new Error(`LinkedIn token refresh error: ${data.error} — ${data.error_description}`);
+  _liAccessToken = data.access_token;
+  _liTokenExpiry  = Date.now() + (data.expires_in || 5_184_000) * 1000;
+  // LinkedIn rotates refresh tokens — update in-memory so the next refresh works
+  // without a server restart. The Render env var (LINKEDIN_REFRESH_TOKEN) stays as the
+  // seed; in-memory rotation keeps the chain going indefinitely.
+  if (data.refresh_token) cfg.refreshToken = data.refresh_token;
+  console.log(`[LinkedIn] Access token refreshed — expires in ${Math.round((data.expires_in || 5_184_000) / 86400)} days`);
+  return _liAccessToken;
+}
+
+// ============================================================
 // LINKEDIN OAUTH 2.0 HELPER
 // Admin visits /auth/linkedin → LinkedIn consent → /auth/linkedin/callback
 // Callback shows the access token so it can be stored in Render as LINKEDIN_TOKEN.
@@ -713,23 +759,38 @@ app.get('/auth/linkedin/callback', async (req, res) => {
     });
     const td = await tokenResp.json();
     if (td.error) return res.status(400).send(`Token exchange failed: ${td.error} — ${td.error_description}`);
+    // Auto-store tokens in-memory immediately — LinkedIn data works right away without restart
+    if (td.access_token) {
+      _liAccessToken = td.access_token;
+      _liTokenExpiry  = Date.now() + (td.expires_in || 5_184_000) * 1000;
+      config.linkedin.accessToken = td.access_token;
+      config.linkedin.enabled = true;
+    }
+    if (td.refresh_token) config.linkedin.refreshToken = td.refresh_token;
     const expiresDate = new Date(Date.now() + (td.expires_in || 5184000) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const days = Math.round((td.expires_in || 5184000) / 86400);
+    const rtDays = td.refresh_expires_in ? Math.round(td.refresh_expires_in / 86400) : 365;
     res.send(`<!DOCTYPE html><html><head><title>LinkedIn Token Ready</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a2744;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:40px 20px}.card{background:#112240;border-radius:12px;padding:32px;width:100%;max-width:760px;box-shadow:0 20px 60px rgba(0,0,0,0.4)}h1{color:#22C55E;font-size:22px;margin-bottom:20px}p{color:#94A3B8;font-size:14px;margin-bottom:8px}.label{color:#60A5FA;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:20px;margin-bottom:6px}.token{background:#0a0f1a;border:1px solid #1e3a5f;padding:14px 16px;border-radius:6px;word-break:break-all;font-family:monospace;font-size:13px;color:#86EFAC;line-height:1.6}.step{background:#1a3d6e;border-radius:8px;padding:16px;margin-top:20px;color:#CBD5E1;font-size:14px}a{color:#60A5FA}</style>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a2744;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:40px 20px}.card{background:#112240;border-radius:12px;padding:32px;width:100%;max-width:760px;box-shadow:0 20px 60px rgba(0,0,0,0.4)}h1{color:#22C55E;font-size:22px;margin-bottom:20px}p{color:#94A3B8;font-size:14px;margin-bottom:8px}.label{color:#60A5FA;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:20px;margin-bottom:6px}.token{background:#0a0f1a;border:1px solid #1e3a5f;padding:14px 16px;border-radius:6px;word-break:break-all;font-family:monospace;font-size:13px;color:#86EFAC;line-height:1.6}.step{background:#1a3d6e;border-radius:8px;padding:16px;margin-top:20px;color:#CBD5E1;font-size:14px}.highlight{background:#1a4d2e;border:1px solid #22C55E;border-radius:8px;padding:16px;margin-top:20px;color:#CBD5E1;font-size:14px}a{color:#60A5FA}</style>
 </head><body><div class="card">
-<h1>✅ LinkedIn Token Generated</h1>
-<p>Copy the token below and paste it into Render as <strong style="color:#fff">LINKEDIN_TOKEN</strong>.</p>
-<div class="label">Access Token (copy all of it)</div>
+<h1>✅ LinkedIn Tokens Generated</h1>
+<p>Tokens are active in memory right now. Save them to Render so they survive restarts.</p>
+${td.refresh_token ? `
+<div class="highlight">
+  <strong style="color:#22C55E">⭐ PRIORITY: Save this Refresh Token to Render as LINKEDIN_REFRESH_TOKEN</strong><br>
+  <span style="font-size:13px;color:#94A3B8">This is the key to auto-renewal. The server uses it to silently refresh access tokens — you never have to re-auth. Valid for ${rtDays} days and rotates automatically.</span>
+  <div class="label">Refresh Token</div>
+  <div class="token">${td.refresh_token}</div>
+</div>` : ''}
+<div class="label">Access Token (expires ${expiresDate} — ${days} days)</div>
 <div class="token">${td.access_token}</div>
-<p style="margin-top:10px;font-size:13px">Expires: ${expiresDate} (${days} days from now)</p>
-${td.refresh_token ? `<div class="label">Refresh Token (save as LINKEDIN_REFRESH_TOKEN — optional)</div><div class="token">${td.refresh_token}</div>` : ''}
 <div class="step">
-  <strong>Next steps:</strong><br>
+  <strong>One-time Render setup:</strong><br>
   1. Go to <a href="https://dashboard.render.com" target="_blank">Render dashboard</a> → your service → Environment<br>
-  2. Add/update <code>LINKEDIN_TOKEN</code> with the value above<br>
-  3. Click <strong>Save Changes</strong> → the service will redeploy automatically<br>
-  4. LinkedIn data will appear in the dashboard within ~60 seconds
+  2. Add <code>LINKEDIN_REFRESH_TOKEN</code> ← the refresh token above (most important)<br>
+  3. Optionally add <code>LINKEDIN_TOKEN</code> as a backup seed<br>
+  4. Click <strong>Save Changes</strong> → redeploy<br><br>
+  After that, tokens auto-rotate forever. You will never need to visit this page again.
 </div>
 </div></body></html>`);
   } catch (err) {
@@ -738,8 +799,9 @@ ${td.refresh_token ? `<div class="label">Refresh Token (save as LINKEDIN_REFRESH
 });
 
 app.get('/api/linkedin/organization', async (req, res) => {
-  const { accessToken, organizationId } = config.linkedin || {};
-  if (!accessToken || !organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
+  const { organizationId } = config.linkedin || {};
+  if (!organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
+  let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const data = await apiFetch(
     `${LI_BASE}/organizations/${organizationId}?projection=(id,localizedName,vanityName,logoV2,followersCount)`,
     { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503', 'X-Restli-Protocol-Version': '2.0.0' } }
@@ -748,8 +810,9 @@ app.get('/api/linkedin/organization', async (req, res) => {
 });
 
 app.get('/api/linkedin/follower-count', async (req, res) => {
-  const { accessToken, organizationId } = config.linkedin || {};
-  if (!accessToken || !organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
+  const { organizationId } = config.linkedin || {};
+  if (!organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
+  let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const data = await apiFetch(
     `${LI_BASE}/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity=urn:li:organization:${organizationId}`,
     { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503', 'X-Restli-Protocol-Version': '2.0.0' } }
@@ -758,8 +821,9 @@ app.get('/api/linkedin/follower-count', async (req, res) => {
 });
 
 app.get('/api/linkedin/posts', async (req, res) => {
-  const { accessToken, organizationId } = config.linkedin || {};
-  if (!accessToken || !organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
+  const { organizationId } = config.linkedin || {};
+  if (!organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
+  let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const data = await apiFetch(
     `${LI_REST}/posts?author=urn:li:organization:${organizationId}&q=author&count=50&sortBy=LAST_MODIFIED`,
     { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' } }
@@ -768,8 +832,7 @@ app.get('/api/linkedin/posts', async (req, res) => {
 });
 
 app.get('/api/linkedin/social-actions/:postUrn', async (req, res) => {
-  const { accessToken } = config.linkedin || {};
-  if (!accessToken) return res.json({ error: true, message: 'LinkedIn not configured' });
+  let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const urn = decodeURIComponent(req.params.postUrn);
   const [likes, comments] = await Promise.all([
     apiFetch(`${LI_REST}/socialActions/${encodeURIComponent(urn)}/likes?count=50`, { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' } }),
@@ -779,8 +842,9 @@ app.get('/api/linkedin/social-actions/:postUrn', async (req, res) => {
 });
 
 app.get('/api/linkedin/page-stats', async (req, res) => {
-  const { accessToken, organizationId } = config.linkedin || {};
-  if (!accessToken || !organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
+  const { organizationId } = config.linkedin || {};
+  if (!organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
+  let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const data = await apiFetch(
     `${LI_REST}/organizationPageStatistics?q=organization&organization=urn:li:organization:${organizationId}`,
     { headers: { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' } }
@@ -789,8 +853,9 @@ app.get('/api/linkedin/page-stats', async (req, res) => {
 });
 
 app.get('/api/linkedin/all-comments', async (req, res) => {
-  const { accessToken, organizationId } = config.linkedin || {};
-  if (!accessToken || !organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
+  const { organizationId } = config.linkedin || {};
+  if (!organizationId) return res.json({ error: true, message: 'LinkedIn not configured' });
+  let accessToken; try { accessToken = await _liGetAccessToken(); } catch(e) { return res.json({ error: true, message: e.message }); }
   const liHeaders = { 'Authorization': `Bearer ${accessToken}`, 'LinkedIn-Version': '202503' };
   const postsData = await apiFetch(
     `${LI_REST}/posts?author=urn:li:organization:${organizationId}&q=author&count=50&sortBy=LAST_MODIFIED`,
@@ -870,7 +935,7 @@ app.get('/api/all-data', async (req, res) => {
     youtube: !!(config.youtube?.enabled && config.youtube?.apiKey),
     facebook: !!(config.facebook?.enabled && config.facebook?.pageAccessToken),
     instagram: !!(config.instagram?.enabled && config.instagram?.accessToken),
-    linkedin: !!(config.linkedin?.enabled && config.linkedin?.accessToken)
+    linkedin: !!(config.linkedin?.enabled)
   };
   const port = config.server?.port || 3000;
   const fetches = {};
