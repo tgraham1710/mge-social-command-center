@@ -721,12 +721,56 @@ async function _liGetAccessToken() {
   if (data.error) throw new Error(`LinkedIn token refresh error: ${data.error} — ${data.error_description}`);
   _liAccessToken = data.access_token;
   _liTokenExpiry  = Date.now() + (data.expires_in || 5_184_000) * 1000;
-  // LinkedIn rotates refresh tokens — update in-memory so the next refresh works
-  // without a server restart. The Render env var (LINKEDIN_REFRESH_TOKEN) stays as the
-  // seed; in-memory rotation keeps the chain going indefinitely.
-  if (data.refresh_token) cfg.refreshToken = data.refresh_token;
+  // LinkedIn rotates refresh tokens on every use. Update in-memory immediately,
+  // then persist to Render env vars so the new token survives server restarts.
+  if (data.refresh_token) {
+    cfg.refreshToken = data.refresh_token;
+    _liPersistRefreshToken(data.refresh_token).catch(e =>
+      console.warn('[LinkedIn] Could not persist refresh token to Render:', e.message)
+    );
+  }
   console.log(`[LinkedIn] Access token refreshed — expires in ${Math.round((data.expires_in || 5_184_000) / 86400)} days`);
   return _liAccessToken;
+}
+
+// Persists a new LinkedIn refresh token to Render env vars so it survives server restarts.
+// Requires RENDER_API_KEY env var (create at dashboard.render.com → Account Settings → API Keys).
+// RENDER_SERVICE_ID defaults to this service's ID.
+async function _liPersistRefreshToken(newToken) {
+  const apiKey    = process.env.RENDER_API_KEY;
+  const serviceId = process.env.RENDER_SERVICE_ID || 'srv-d7be0pbuibrs739mi54g';
+  if (!apiKey) {
+    console.warn('[LinkedIn] RENDER_API_KEY not set — refresh token will not survive restarts. Add it in Render env vars.');
+    return;
+  }
+  try {
+    // Fetch current env vars so we can do a targeted update
+    const listResp = await fetch(`https://api.render.com/v1/services/${serviceId}/env-vars`, {
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' }
+    });
+    if (!listResp.ok) throw new Error(`Render env list failed: ${listResp.status}`);
+    const envVars = await listResp.json(); // [{ key, value }, ...]
+    // Replace LINKEDIN_REFRESH_TOKEN; keep everything else unchanged
+    const updated = envVars.map(v =>
+      v.key === 'LINKEDIN_REFRESH_TOKEN' ? { key: v.key, value: newToken } : { key: v.key, value: v.value }
+    );
+    if (!updated.find(v => v.key === 'LINKEDIN_REFRESH_TOKEN')) {
+      updated.push({ key: 'LINKEDIN_REFRESH_TOKEN', value: newToken });
+    }
+    const putResp = await fetch(`https://api.render.com/v1/services/${serviceId}/env-vars`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(updated)
+    });
+    if (!putResp.ok) throw new Error(`Render env update failed: ${putResp.status}`);
+    console.log('[LinkedIn] Refresh token persisted to Render env vars — will survive restarts.');
+  } catch (err) {
+    throw err; // re-throw so caller's .catch() logs it
+  }
 }
 
 // ============================================================
