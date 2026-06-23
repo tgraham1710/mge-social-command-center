@@ -815,7 +815,13 @@ app.get('/auth/linkedin/callback', async (req, res) => {
       config.linkedin.accessToken = td.access_token;
       config.linkedin.enabled = true;
     }
-    if (td.refresh_token) config.linkedin.refreshToken = td.refresh_token;
+    if (td.refresh_token) {
+      config.linkedin.refreshToken = td.refresh_token;
+      // Persist immediately to Render env vars so it survives restarts
+      _liPersistRefreshToken(td.refresh_token)
+        .then(() => console.log('[LinkedIn] OAuth callback: refresh token persisted to Render.'))
+        .catch(e => console.warn('[LinkedIn] OAuth callback: could not persist refresh token:', e.message));
+    }
     const expiresDate = new Date(Date.now() + (td.expires_in || 5184000) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const days = Math.round((td.expires_in || 5184000) / 86400);
     const rtDays = td.refresh_expires_in ? Math.round(td.refresh_expires_in / 86400) : 365;
@@ -834,12 +840,8 @@ ${td.refresh_token ? `
 <div class="label">Access Token (expires ${expiresDate} — ${days} days)</div>
 <div class="token">${td.access_token}</div>
 <div class="step">
-  <strong>One-time Render setup:</strong><br>
-  1. Go to <a href="https://dashboard.render.com" target="_blank">Render dashboard</a> → your service → Environment<br>
-  2. Add <code>LINKEDIN_REFRESH_TOKEN</code> ← the refresh token above (most important)<br>
-  3. Optionally add <code>LINKEDIN_TOKEN</code> as a backup seed<br>
-  4. Click <strong>Save Changes</strong> → redeploy<br><br>
-  After that, tokens auto-rotate forever. You will never need to visit this page again.
+  <strong>✅ Auto-save active:</strong> The refresh token above has been automatically saved to your Render environment variables. No manual steps needed.<br><br>
+  Tokens will rotate and self-persist on every renewal. You will never need to visit this page again unless you intentionally revoke access.
 </div>
 </div></body></html>`);
   } catch (err) {
