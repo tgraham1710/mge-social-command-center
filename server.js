@@ -172,6 +172,15 @@ if (DASHBOARD_PASSWORD) {
   // Auth middleware — protect everything except login routes
   app.use((req, res, next) => {
     if (req.path.startsWith('/auth/')) return next();
+    // Allow ?pw= query param as a CAPTCHA-free access path (for API reviewers / automated checks)
+    if (req.query.pw === DASHBOARD_PASSWORD) {
+      res.setHeader('Set-Cookie', `mge_auth=${SESSION_TOKEN}; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800`);
+      // Strip the pw param from the URL before redirecting so it doesn't stay in the address bar
+      const clean = req.path + (Object.keys(req.query).filter(k => k !== 'pw').length
+        ? '?' + new URLSearchParams(Object.fromEntries(Object.entries(req.query).filter(([k]) => k !== 'pw'))).toString()
+        : '');
+      return res.redirect(clean);
+    }
     const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map(c => { const [k,...v]=c.trim().split('='); return [k, v.join('=')]; }));
     if (cookies.mge_auth === SESSION_TOKEN) return next();
     return res.redirect('/auth/login');
