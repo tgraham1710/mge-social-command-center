@@ -744,19 +744,24 @@ async function _liPersistRefreshToken(newToken) {
     return;
   }
   try {
-    // Fetch current env vars so we can do a targeted update
+    // Fetch current env vars so we can do a targeted update.
+    // Render returns [{ envVar: { key, value }, cursor }] (paginated wrapper format).
     const listResp = await fetch(`https://api.render.com/v1/services/${serviceId}/env-vars`, {
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' }
     });
-    if (!listResp.ok) throw new Error(`Render env list failed: ${listResp.status}`);
-    const envVars = await listResp.json(); // [{ key, value }, ...]
+    if (!listResp.ok) throw new Error(`Render env list failed: ${listResp.status} ${await listResp.text()}`);
+    const raw = await listResp.json();
+    // Unwrap paginated format → [{ key, value }]
+    const envVars = Array.isArray(raw)
+      ? raw.map(item => item.envVar ?? item)   // handle both { envVar: {...} } and bare { key, value }
+      : [];
     // Replace LINKEDIN_REFRESH_TOKEN; keep everything else unchanged
-    const updated = envVars.map(v =>
-      v.key === 'LINKEDIN_REFRESH_TOKEN' ? { key: v.key, value: newToken } : { key: v.key, value: v.value }
-    );
-    if (!updated.find(v => v.key === 'LINKEDIN_REFRESH_TOKEN')) {
-      updated.push({ key: 'LINKEDIN_REFRESH_TOKEN', value: newToken });
-    }
+    let found = false;
+    const updated = envVars.map(v => {
+      if (v.key === 'LINKEDIN_REFRESH_TOKEN') { found = true; return { key: v.key, value: newToken }; }
+      return { key: v.key, value: v.value };
+    });
+    if (!found) updated.push({ key: 'LINKEDIN_REFRESH_TOKEN', value: newToken });
     const putResp = await fetch(`https://api.render.com/v1/services/${serviceId}/env-vars`, {
       method: 'PUT',
       headers: {
@@ -766,7 +771,7 @@ async function _liPersistRefreshToken(newToken) {
       },
       body: JSON.stringify(updated)
     });
-    if (!putResp.ok) throw new Error(`Render env update failed: ${putResp.status}`);
+    if (!putResp.ok) throw new Error(`Render env update failed: ${putResp.status} ${await putResp.text()}`);
     console.log('[LinkedIn] Refresh token persisted to Render env vars — will survive restarts.');
   } catch (err) {
     throw err; // re-throw so caller's .catch() logs it
