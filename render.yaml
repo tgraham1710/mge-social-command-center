@@ -8,35 +8,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: YOUTUBE_API_KEY
-        sync: false
-      - key: YOUTUBE_CHANNEL_ID
-        sync: false
-      - key: FACEBOOK_PAGE_TOKEN
-        sync: false
-      - key: FACEBOOK_APP_ID
-        sync: false
-      - key: FACEBOOK_PAGE_ID
-        sync: false
-      - key: INSTAGRAM_TOKEN
-        sync: false
-      - key: INSTAGRAM_USER_ID
-        sync: false
-      - key: LINKEDIN_TOKEN
-        sync: false
-      - key: LINKEDIN_ORG_ID
-        sync: false
-      - key: DASHBOARD_PASSWORD
-        sync: false
-      - key: GOOGLE_ALERTS_RSS_URLS
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: INSIGHTS_MODEL
-        sync: false
-      - key: REDDIT_CLIENT_ID
-        sync: false
-      - key: REDDIT_CLIENT_SECRET
-        sync: false
+      # All secret env vars are managed exclusively in the Render dashboard.
+      # Do NOT add sync:false entries here -- Render's blueprint sync can wipe
+      # dashboard-set values for any key listed in this file, even with sync:false.
