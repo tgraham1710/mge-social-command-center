@@ -1,6 +1,56 @@
 {
   "version": 1,
   "repo": "tgraham1710/mge-social-command-center",
-  "lastUpdatedAt": "2026-11-10T12:56:38.335Z",
-  "stories": {}
+  "lastUpdatedAt": "2026-11-12T17:18:58.166Z",
+  "stories": {
+    "facebook:1150449603997399": {
+      "platform": "facebook",
+      "storyId": "1150449603997399",
+      "postId": "1150449603997399",
+      "status": "published",
+      "mediaType": "photo",
+      "mediaUrl": null,
+      "thumbnailUrl": null,
+      "permalink": "https://facebook.com/stories/101059228694585/UzpfSVNDOjExNTA0NDk2MTM5OTczOTg=/?view_single=1",
+      "caption": "",
+      "postedAt": "2026-11-12T14:34:42.000Z",
+      "expiresAt": null,
+      "capturedAt": "2026-11-12T17:18:58.165Z",
+      "metrics": {
+        "pages_fb_story_replies": 0,
+        "replies": 0,
+        "pages_fb_story_shares": 0,
+        "shares": 0,
+        "pages_fb_story_thread_lightweight_reactions": 1,
+        "reactions": 1,
+        "story_interaction": 1,
+        "total_interactions": 1,
+        "story_media_view": 0,
+        "views": 0,
+        "story_total_media_view_unique": 0,
+        "unique_views": 0
+      },
+      "navigationBreakdown": null,
+      "captureHistory": [
+        {
+          "capturedAt": "2026-11-12T17:18:58.165Z",
+          "metrics": {
+            "pages_fb_story_replies": 0,
+            "replies": 0,
+            "pages_fb_story_shares": 0,
+            "shares": 0,
+            "pages_fb_story_thread_lightweight_reactions": 1,
+            "reactions": 1,
+            "story_interaction": 1,
+            "total_interactions": 1,
+            "story_media_view": 0,
+            "views": 0,
+            "story_total_media_view_unique": 0,
+            "unique_views": 0
+          },
+          "navigationBreakdown": null
+        }
+      ]
+    }
+  }
 }
