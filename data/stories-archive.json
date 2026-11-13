@@ -1,7 +1,7 @@
 {
   "version": 1,
   "repo": "tgraham1710/mge-social-command-center",
-  "lastUpdatedAt": "2026-11-12T17:18:58.166Z",
+  "lastUpdatedAt": "2026-11-13T04:21:59.178Z",
   "stories": {
     "facebook:1150449603997399": {
       "platform": "facebook",
@@ -15,7 +15,7 @@
       "caption": "",
       "postedAt": "2026-11-12T14:34:42.000Z",
       "expiresAt": null,
-      "capturedAt": "2026-11-12T17:18:58.165Z",
+      "capturedAt": "2026-11-13T04:21:59.178Z",
       "metrics": {
         "pages_fb_story_replies": 0,
         "replies": 0,
@@ -25,15 +25,15 @@
         "reactions": 1,
         "story_interaction": 1,
         "total_interactions": 1,
-        "story_media_view": 0,
-        "views": 0,
-        "story_total_media_view_unique": 0,
-        "unique_views": 0
+        "story_media_view": 47,
+        "views": 47,
+        "story_total_media_view_unique": 43,
+        "unique_views": 43
       },
       "navigationBreakdown": null,
       "captureHistory": [
         {
-          "capturedAt": "2026-11-12T17:18:58.165Z",
+          "capturedAt": "2026-11-13T04:21:59.178Z",
           "metrics": {
             "pages_fb_story_replies": 0,
             "replies": 0,
@@ -43,10 +43,10 @@
             "reactions": 1,
             "story_interaction": 1,
             "total_interactions": 1,
-            "story_media_view": 0,
-            "views": 0,
-            "story_total_media_view_unique": 0,
-            "unique_views": 0
+            "story_media_view": 47,
+            "views": 47,
+            "story_total_media_view_unique": 43,
+            "unique_views": 43
           },
           "navigationBreakdown": null
         }
